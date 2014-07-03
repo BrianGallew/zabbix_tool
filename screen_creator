@@ -1,0 +1,426 @@
+#!/usr/bin/env python
+
+"""
+Zabbix Screen creation tool
+Brian Gallew
+
+This is very similar to another script (zabbix_tool) I wrote, except that
+it's much more limited in scope: screen creation.  I don't know how many
+screens I've created by hand, but really, all the clicking, pointing,
+searching, dragging, etc., get more than a little annoying after a while.
+
+https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py
+"""
+
+import zabbix_api
+import sys
+import os
+import logging
+import ConfigParser
+import argparse
+import operator
+from pprint import pprint
+
+CONFIG = 'config'
+LOGLEVEL = 'loglevel'
+NAME = 'name'
+PASSWORD = 'password'
+URL = 'url'
+VERBOSE = 'verbose'
+FILTER = 'filter'
+SECTION = 'section'
+
+CONFIG_HELP = '''
+All Screen, Item, Host, and Group identifiers may be either a name or an ID.
+
+The Config file used by %s should look like this:
+-------------- CUT HERE -----------------
+[zabbix]
+username='zabbix-api-user'
+password='not-your-password'
+url='http://zabbix-api.example.com/'
+
+[dev]
+username='zabbix-dev-api-user'
+password='not-mine-either'
+url='https://zabbix-dev.example.com/'
+-------------- CUT HERE -----------------
+
+By default, %s will use the [zabbix] paragraph, but if you use the
+-s/--section option, you can tell %s to use a different section.
+''' % (sys.argv[0], sys.argv[0], sys.argv[0])
+
+
+class Client(object):
+
+    '''Zabbix API CLI tool.  All public functions should return a list
+    which will be printed and summarized.'''
+
+    _APPLICATIONID = 'applicationid'
+    _APPLICATIONIDS = 'applicationids'
+    _DESCRIPTION = 'description'
+    _ERROR = 'error'
+    _EXTEND = 'extend'
+    _FILTER = 'filter'
+    _GRAPHID = 'graphid'
+    _GRAPHIDS = 'graphids'
+    _GROUPID = 'groupid'
+    _GROUPIDS = 'groupids'
+    _HEIGHT = 'height'
+    _HOST = 'host'
+    _HOSTID = 'hostid'
+    _HOSTIDS = 'hostids'
+    _HOSTS = 'hosts'
+    _HSIZE = 'hsize'
+    _ITEMID = 'itemid'
+    _ITEMIDS = 'itemids'
+    _KEY = 'key_'
+    _LIMIT = 'limit'
+    _NAME = 'name'
+    _OUTPUT = 'output'
+    _PROXYID = 'proxyid'
+    _PROXYIDS = 'proxyids'
+    _RESOURCEID = 'resourceid'
+    _RESULT = 'result'
+    _SCREENID = 'screenid'
+    _SCREENIDS = 'screenids'
+    _SEARCH = 'search'
+    _SEARCHWILDCARDSENABLED = 'searchwildcardsenabled'
+    _SELECTHOSTS = 'selectHosts'
+    _SELECTTRIGGERS = 'selectTriggers'
+    _SORTFIELD = 'sortfield'
+    _SORTORDER = 'sortorder'
+    _STATUS = 'status'
+    _TEMPLATEID = 'templateid'
+    _TEMPLATEIDS = 'templateids'
+    _TEMPLATES = 'templates'
+    _TRIGGERIDS = 'triggerids'
+    _VSIZE = 'vsize'
+    _WIDTH = 'width'
+
+    def __init__(self, options, timeout=60):
+        '''Connect to Zabbix server
+        :param options: Result of parsing command line
+        :param timeout: Maximum length of time for a single RPC
+        :returns: None
+        '''
+        logging.debug("ENTERED: Client.__init__")
+        self.z = zabbix_api.ZabbixAPI(server=options.url, timeout=timeout)
+        self.z.set_log_level(logging.root.level)
+        self.z.login(user=options.username, password=options.password)
+        return
+
+    def get_screen(self, identifier):
+        '''Look up a screen.
+        :param identifier: the name or ID of a screen
+        :returns: Zabbix screen object or empty dict'''
+        logging.debug("ENTERED: Client.get_screen")
+        try:
+            int(identifier)
+            result = self.z.screen.get({self._SCREENIDS: identifier,
+                                        self._OUTPUT: self._EXTEND})
+        except:
+            result = self.z.screen.get({self._FILTER: {self._NAME: identifier},
+                                        self._OUTPUT: self._EXTEND})
+        logging.debug("Client.get_screen result: %s", str(result))
+        return result and result[0] or {}
+
+    def get_graph(self, identifier):
+        '''Look up a graph.
+        :param identifier: name or ID of a graph
+        :returns: List of Zabbix graph objects or []'''
+        logging.debug("ENTERED: Client.get_graph")
+        try:
+            int(identifier)
+            result = self.z.graph.get({self._GRAPHIDS: identifier,
+                                       self._OUTPUT: self._EXTEND})
+        except:
+            result = self.z.graph.get({self._FILTER: {self._NAME: identifier},
+                                       self._OUTPUT: self._EXTEND})
+        logging.debug("Client.get_graph result: %s", str(result))
+        return result or []
+
+    def get_hostgroup(self, hostgroup):
+        '''Look up a hostgroup by name or ID number.
+        :param hostgroup: name or ID of a hostgroup
+        :returns: Zabbix hostgroup object or {}
+        '''
+        logging.debug("ENTERED: Client.get_hostgroup")
+        try:
+            int(hostgroup)
+            result = self.z.hostgroup.get({self._GROUPIDS: hostgroup,
+                                           self._OUTPUT: self._EXTEND})
+        except:
+            result = self.z.hostgroup.get({self._FILTER:
+                                           {self._NAME: hostgroup}})
+        logging.debug("Client.get_hostgroup result: %s", str(result))
+        return result and result[0] or {}
+
+    def get_host(self, host):
+        '''Look up a host by name or ID number.
+        :param host: name or ID of a host
+        :returns: Zabbix host object or {}'''
+        logging.debug("ENTERED: Client.get_host")
+        try:
+            int(host)
+            result = self.z.host.get({self._HOSTIDS: host,
+                                      self._OUTPUT: self._EXTEND})
+        except:
+            result = self.z.host.get({self._FILTER: {self._NAME: host}})
+        return result and result[0] or {}
+
+    def get_hostgroup_hosts(self, hostgroup):
+        '''Look up all of the hosts which belong to a given hostgroup.  This
+        uses it's own call to self.z.hostgroup because it wants to use the
+        _SELECTHOSTS extension.
+        :param hostgroup: name or ID of a hostgroup
+        :returns: list of Zabbix hosts or []
+        '''
+        logging.debug("ENTERED: Client.get_hostgroup_hosts")
+        hostgroup = self.get_hostgroup(hostgroup)
+        if not hostgroup:
+            return hostgroup
+        hosts = []
+        for x in self.z.hostgroup.get({self._GROUPIDS: hostgroup[self._GROUPID],
+                                       self._SELECTHOSTS: self._EXTEND
+                                       }):
+            hosts.extend(x[self._HOSTS])
+        return sorted(hosts, key=operator.itemgetter(self._HOST))
+
+    def create(self, options):
+        """Creates a screen.
+        :param name: The name of the new screen
+        :param hsize: How many graphs wide the screen will be
+        :param vsize: How many graphs high the screen will be
+        :returns: screen (zabbix screen object)
+        """
+        logging.debug("ENTERED: Client.create")
+        result = self.z.screen.create({
+            self._NAME: options.screen,
+            self._HSIZE: options.hsize or 1,
+            self._VSIZE: options.vsize or 1
+        })
+        logging.debug("Client.create result: %s", str(result))
+        return result and self.get_screen(result[self._SCREENIDS][0]) or {}
+
+    def update_screen_settings(self, screen, options):
+        '''Check the options to see if the screen needs to be updated,
+        then do so.
+        :param screen: Zabbix screen object
+        :param options: result of CLI parsing
+        :returns: the (possibly updated) screen
+        '''
+        logging.debug("ENTERED: Client.update_screen_settings")
+        params = {}
+        if options.rename and screen[self._NAME] != options.rename:
+            params[self._NAME] = options.rename
+        if options.hsize and screen[self._HSIZE] != options.hsize:
+            params[self._HSIZE] = options.hsize
+        if options.vsize and screen[self._VSIZE] != options.vsize:
+            params[self._VSIZE] = options.vsize
+        if params:
+            params[self._SCREENID] = screen[self._SCREENID]
+            # This should probably check the return value
+            self.z.screen.update(params)
+            return self.get_screen(screen[self._SCREENID])
+        else:
+            return screen
+
+    def delete_screen(self, screen):
+        '''Deletes a screen.
+        :param screen: screen name or ID
+        '''
+        screen = self.get_screen(screen)
+        if screen:
+            self.z.screen.delete([screen[self._SCREENID], ])
+        return
+
+    def add_all_host(self, screen, options):
+        '''Add all of the graphs associated with the given host to the given
+        screen.
+        :param screen: Zabbix screen object
+        :param options: result of CLI parsing
+        '''
+        if not options.add_all_host: # Check to see if we're adding host graphs
+            return                   # Bail if not
+
+        # Get our host information
+        host = self.get_host(options.add_all_host)
+        if not host:
+            return 'Unable to find host %s' % options.add_all_host
+        logging.debug('add_all_host: hostid is %d', host[self._HOSTID])
+
+        # Get the graph set for the host in question.
+        graphs = {}
+        for graph in self.z.graph.get({self._HOSTIDS: host[self._HOSTID]}):
+            graphs[graph[self._GRAPHID]] = graph
+        logging.info('add_all_host: Got %d graphs', len(graphs))
+        return self.add_graphs_to_screen(screen, graphs, options)
+
+    def add_screenitem(self, screenid, graphid, x, y, options):
+        '''Adds one graph to a screen, possibly explicitly setting the height or
+        width of the graph.
+        :param screenid: ID of the screen to be updated
+        :param graphid: ID of the graph to be added
+        :param x: horizontal position of the graph
+        :param y: vertical position (from the top) of the graph
+        :param options: result of CLI parsing        
+        '''
+        params = {self._SCREENID: screenid,
+                  self._RESOURCEID: graphid,
+                  'resourcetype': 0,
+                  'rowspan': 0,
+                  'colspan': 0,
+                  'x': x,
+                  'y': y}
+        for param in [self._HEIGHT, self._WIDTH]:
+            value = getattr(options, param, None)
+            if value: params[param] = value
+        self.z.screenitem.create(params)
+        return
+
+    def add_graphs_to_screen(self, screen, graphs, options):
+        '''Add graphs directly to a screen object.
+        :param screen: Zabbix screen object
+        :param graphs: list of Zabbix graph objects
+        :param options: result of CLI parsing
+        :returns: None or an error message
+        '''
+        # Get the current screen configuration
+        existing_items = self.z.screenitem.get({self._SCREENIDS: screen[self._SCREENID],
+                                                self._OUTPUT: self._EXTEND})
+
+        # Build a matrix to use for graph positioning
+        graph_matrix = [[None for x in xrange(int(screen[self._HSIZE]))]
+                        for x in xrange(int(screen[self._VSIZE]))]
+
+        # Add each item from the existing item set into the matrix.  While
+        # we're at it, ensure we remove them all from the set of graphs to
+        # be added (no duplicates!).
+        for item in existing_items:
+            graph_matrix[int(item['y'])][int(item['x'])] = item
+            if item[self._RESOURCEID] in graphs:
+                logging.info('add_graphs_to_screen: Removing existing item from add list: %s', item[self._RESOURCEID])
+                del graphs[item[self._RESOURCEID]]
+
+        # Iterate through the matrix looking for empty graph locations.
+        for y, row in enumerate(graph_matrix):
+            for x, item in enumerate(row):
+                if not graphs: break
+                if item: continue
+                _, value = graphs.popitem()
+                self.add_screenitem(screen[self._SCREENID],
+                                    value[self._GRAPHID],
+                                    x,
+                                    y,
+                                    options)
+                graph_matrix[y][x] = value
+        if not graphs: return   # We're all done!
+        return '%d graphs were not added because the screen is too small (%s x %s)' % (len(graphs),
+                                                                                       screen[self._HSIZE],
+                                                                                       screen[self._VSIZE])
+        
+
+    def add_all_group(self, screen, options):
+        '''Add all of the graphs associated with the given hostgroup to the given
+        screen.
+        :param screen: Zabbix screen object
+        :param options: result of CLI parsing
+        :returns: None or an error message
+        '''
+        if not options.add_all_group: # Check to see if we're really doing this
+            return                   # Bail if not
+
+        # Get our host information
+        hostlist = self.get_hostgroup_hosts(options.add_all_group[0])
+        if not hostlist:
+            return 'Unable to find hostgroup %s' % options.add_all_group[0]
+        hostlist = [x[self._HOSTID] for x in hostlist]
+        logging.debug('add_all_group: hosts are %s', str(hostlist))
+
+        # Get the graph set for the hosts in question.
+        graphs = {}
+        for graph in self.z.graph.get({self._HOSTIDS: hostlist,
+                                       self._FILTER: {self._NAME: options.add_all_group[1]}}):
+            graphs[graph[self._GRAPHID]] = graph
+        logging.info('add_all_group: Got %d graphs', len(graphs))
+        return self.add_graphs_to_screen(screen, graphs, options)
+
+def parse_command_line():
+    '''Handle command-line options
+    :returns: options, Client
+    '''
+    parser = argparse.ArgumentParser(epilog=CONFIG_HELP,
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("-c", "--config", dest="config",
+                        default=os.environ['HOME'] + '/.zabbix',
+                        help="CONFIG file", metavar="CONFIG")
+    parser.add_argument("-s", "--section", dest="section", default='zabbix',
+                        help="Section of config file to use file", metavar="SECTION")
+    parser.add_argument("-d", "--debug", action='store_true', default=False,
+                        help="Enable debugging messages")
+    parser.add_argument("-v", "--verbose", action='store_true', default=False,
+                        help="Enable verbose messages")
+    parser.add_argument("--delete", action='store_true', default=False,
+                        help="Delete a screen")
+    parser.add_argument("--add-all-host",
+                        help="Add all of the graphs from the given host")
+    parser.add_argument("--add-all-group", nargs=2, metavar=('GROUP', 'GRAPH'),
+                        help="For all of the hosts in the given group, add the given graph")
+    parser.add_argument("--hsize", type=int,
+                        help="Set the width of the screen (in graph objects)")
+    parser.add_argument("--vsize", type=int,
+                        help="Set the height of the screen (in graph objects)")
+    parser.add_argument("--height", default=0, type=int,
+                        help="The height of all graphs to be added")
+    parser.add_argument("--width", default=0, type=int,
+                        help="The width of all graphs to be added")
+    parser.add_argument("--rename", help="Change the name of the screen")
+    parser.add_argument("screen", help="The screen")
+
+    options = parser.parse_args()
+    if options.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    elif options.verbose:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
+    config = ConfigParser.ConfigParser()
+    try:
+        config.readfp(open(options.config))
+    except ConfigParser.Error, config_exception:
+        msg = 'Unable to parse the configuration file(%s): %s\n\n'
+        print msg % (options.config, config_exception)
+        raise
+    if not options.section in config.sections():
+        raise SystemExit('No [zabbix] section in the configuration file')
+
+    for (key, value) in config.items(options.section, 1):
+        setattr(options, key, eval(value))
+
+    return options, Client(options)      # Cheating!
+
+
+def main():
+    '''Program entry point'''
+    options, tool = parse_command_line()
+    # If we're deleting the screen, don't do anything else!
+    if options.delete:
+        return tool.delete_screen(options.screen)
+    screen = tool.get_screen(options.screen)
+    if not screen:
+        screen = tool.create(options)
+    else:
+        screen = tool.update_screen_settings(screen, options)
+    pprint(screen)
+    result = tool.add_all_host(screen, options)
+    if result:
+        logging.fatal(result)
+        exit(1)
+    result = tool.add_all_group(screen, options)
+    if result:
+        logging.fatal(result)
+        exit(1)
+
+if __name__ == '__main__':
+    main()
