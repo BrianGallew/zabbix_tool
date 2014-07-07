@@ -12,7 +12,15 @@ searching, dragging, etc., get more than a little annoying after a while.
 https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py
 """
 
-import zabbix_api
+def screenitem_error():
+    print "Please install https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py\nbefore trying to run this script."
+    exit()
+    
+try:
+    import zabbix_api
+except:
+    screenitem_error()
+    
 import sys
 import os
 import logging
@@ -106,6 +114,10 @@ class Client(object):
         '''
         logging.debug("ENTERED: Client.__init__")
         self.z = zabbix_api.ZabbixAPI(server=options.url, timeout=timeout)
+        if not getattr(self.z, 'screenitem'):
+            print dir(self.z)
+            screenitem_error()
+
         self.z.set_log_level(logging.root.level)
         self.z.login(user=options.username, password=options.password)
         return
@@ -404,6 +416,7 @@ def parse_command_line():
 def main():
     '''Program entry point'''
     options, tool = parse_command_line()
+    
     # If we're deleting the screen, don't do anything else!
     if options.delete:
         return tool.delete_screen(options.screen)
