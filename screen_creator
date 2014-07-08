@@ -27,7 +27,7 @@ import logging
 import ConfigParser
 import argparse
 import operator
-from pprint import pprint
+import re
 
 CONFIG = 'config'
 LOGLEVEL = 'loglevel'
@@ -247,28 +247,6 @@ class Client(object):
             self.z.screen.delete([screen[self._SCREENID], ])
         return
 
-    def add_all_host(self, screen, options):
-        '''Add all of the graphs associated with the given host to the given
-        screen.
-        :param screen: Zabbix screen object
-        :param options: result of CLI parsing
-        '''
-        if not options.add_all_host: # Check to see if we're adding host graphs
-            return                   # Bail if not
-
-        # Get our host information
-        host = self.get_host(options.add_all_host)
-        if not host:
-            return 'Unable to find host %s' % options.add_all_host
-        logging.debug('add_all_host: hostid is %d', host[self._HOSTID])
-
-        # Get the graph set for the host in question.
-        graphs = {}
-        for graph in self.z.graph.get({self._HOSTIDS: host[self._HOSTID]}):
-            graphs[graph[self._GRAPHID]] = graph
-        logging.info('add_all_host: Got %d graphs', len(graphs))
-        return self.add_graphs_to_screen(screen, graphs, options)
-
     def add_screenitem(self, screenid, graphid, x, y, options):
         '''Adds one graph to a screen, possibly explicitly setting the height or
         width of the graph.
@@ -306,21 +284,26 @@ class Client(object):
         graph_matrix = [[None for x in xrange(int(screen[self._HSIZE]))]
                         for x in xrange(int(screen[self._VSIZE]))]
 
+        # This lookup table is created so that we don't have to repeatedly
+        # iterate over the list of graphs.
+        lookup_table = {}
+        for graph in graphs: lookup_table[graph[self._GRAPHID]] = graph
+            
         # Add each item from the existing item set into the matrix.  While
         # we're at it, ensure we remove them all from the set of graphs to
         # be added (no duplicates!).
         for item in existing_items:
             graph_matrix[int(item['y'])][int(item['x'])] = item
-            if item[self._RESOURCEID] in graphs:
+            if item[self._RESOURCEID] in lookup_table:
                 logging.info('add_graphs_to_screen: Removing existing item from add list: %s', item[self._RESOURCEID])
-                del graphs[item[self._RESOURCEID]]
+                graphs.remove(lookup_table[item[self._RESOURCEID]])
 
         # Iterate through the matrix looking for empty graph locations.
         for y, row in enumerate(graph_matrix):
             for x, item in enumerate(row):
                 if not graphs: break
                 if item: continue
-                _, value = graphs.popitem()
+                value = graphs.pop(0)
                 self.add_screenitem(screen[self._SCREENID],
                                     value[self._GRAPHID],
                                     x,
@@ -332,6 +315,31 @@ class Client(object):
                                                                                        screen[self._HSIZE],
                                                                                        screen[self._VSIZE])
         
+
+    def add_all_host(self, screen, options):
+        '''Add all of the graphs associated with the given host to the given
+        screen.
+        :param screen: Zabbix screen object
+        :param options: result of CLI parsing
+        '''
+        if not options.add_all_host: # Check to see if we're adding host graphs
+            return                   # Bail if not
+
+        # Get our host information
+        host = self.get_host(options.add_all_host)
+        if not host:
+            return 'Unable to find host %s' % options.add_all_host
+        logging.debug('add_all_host: hostid is %d', host[self._HOSTID])
+
+        # Get the graph set for the host in question.
+        filter = re.compile(options.filter)
+        graphs = self.z.graph.get({self._HOSTIDS: host[self._HOSTID], self._OUTPUT: self._EXTEND})
+        graphs.sort(key=operator.itemgetter(self._NAME))
+        logging.info('add_all_host: Got %d graphs', len(graphs))
+        graphs = [x for x in graphs if filter.search(x[self._NAME])]
+        if not graphs: return 'All graphs filtered out'
+        
+        return self.add_graphs_to_screen(screen, graphs, options)
 
     def add_all_group(self, screen, options):
         '''Add all of the graphs associated with the given hostgroup to the given
@@ -347,16 +355,28 @@ class Client(object):
         hostlist = self.get_hostgroup_hosts(options.add_all_group[0])
         if not hostlist:
             return 'Unable to find hostgroup %s' % options.add_all_group[0]
-        hostlist = [x[self._HOSTID] for x in hostlist]
-        logging.debug('add_all_group: hosts are %s', str(hostlist))
 
+        filter = re.compile(options.filter)
+
+        hostlist = [x[self._HOSTID] for x in hostlist if filter.search(x[self._NAME]) or filter.search(x[self._HOST])]
+        if not hostlist: return 'All hosts filtered out'
+        logging.debug('add_all_group: hosts are %s', str(hostlist))
+        
         # Get the graph set for the hosts in question.
-        graphs = {}
-        for graph in self.z.graph.get({self._HOSTIDS: hostlist,
-                                       self._FILTER: {self._NAME: options.add_all_group[1]}}):
-            graphs[graph[self._GRAPHID]] = graph
+        graphs = self.z.graph.get({self._HOSTIDS: hostlist, self._OUTPUT: self._EXTEND,
+                                   self._FILTER: {self._NAME: options.add_all_group[1]}})
         logging.info('add_all_group: Got %d graphs', len(graphs))
-        return self.add_graphs_to_screen(screen, graphs, options)
+
+        # This oddity is to sort the graphs, because we'd *like* the graphs
+        # to be ordered by hostname.  Of course, if there are "holes" in
+        # the screen, they will play hob with this ordering, but that's a
+        # different problem.
+        sorted_graphs = []
+        for hostid in hostlist:
+            sorted_graphs.extend([x for x in graphs if x[self._HOSTS][0][self._HOSTID] == hostid])
+        logging.debug('add_all_group: Sorted into %d graphs', len(sorted_graphs))
+        
+        return self.add_graphs_to_screen(screen, sorted_graphs, options)
 
 def parse_command_line():
     '''Handle command-line options
@@ -387,6 +407,8 @@ def parse_command_line():
                         help="The height of all graphs to be added")
     parser.add_argument("--width", default=0, type=int,
                         help="The width of all graphs to be added")
+    parser.add_argument("--filter", default='.*',
+                        help="REGEX filter graph names for hosts, host names for hostgroups.")
     parser.add_argument("--rename", help="Change the name of the screen")
     parser.add_argument("screen", help="The screen")
 
@@ -425,7 +447,6 @@ def main():
         screen = tool.create(options)
     else:
         screen = tool.update_screen_settings(screen, options)
-    pprint(screen)
     result = tool.add_all_host(screen, options)
     if result:
         logging.fatal(result)
@@ -434,6 +455,8 @@ def main():
     if result:
         logging.fatal(result)
         exit(1)
+    print screen
+    return
 
 if __name__ == '__main__':
     main()
