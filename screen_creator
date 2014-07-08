@@ -178,7 +178,7 @@ class Client(object):
             result = self.z.host.get({self._HOSTIDS: host,
                                       self._OUTPUT: self._EXTEND})
         except:
-            result = self.z.host.get({self._FILTER: {self._NAME: host}})
+            result = self.z.host.get({self._FILTER: {self._HOST: host}})
         return result and result[0] or {}
 
     def get_hostgroup_hosts(self, hostgroup):
@@ -329,7 +329,7 @@ class Client(object):
         host = self.get_host(options.add_all_host)
         if not host:
             return 'Unable to find host %s' % options.add_all_host
-        logging.debug('add_all_host: hostid is %d', host[self._HOSTID])
+        logging.debug('add_all_host: hostid is %s', host[self._HOSTID])
 
         # Get the graph set for the host in question.
         filter = re.compile(options.filter)
