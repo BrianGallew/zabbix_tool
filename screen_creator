@@ -247,28 +247,6 @@ class Client(object):
             self.z.screen.delete([screen[self._SCREENID], ])
         return
 
-    def add_all_host(self, screen, options):
-        '''Add all of the graphs associated with the given host to the given
-        screen.
-        :param screen: Zabbix screen object
-        :param options: result of CLI parsing
-        '''
-        if not options.add_all_host: # Check to see if we're adding host graphs
-            return                   # Bail if not
-
-        # Get our host information
-        host = self.get_host(options.add_all_host)
-        if not host:
-            return 'Unable to find host %s' % options.add_all_host
-        logging.debug('add_all_host: hostid is %d', host[self._HOSTID])
-
-        # Get the graph set for the host in question.
-        graphs = {}
-        for graph in self.z.graph.get({self._HOSTIDS: host[self._HOSTID]}):
-            graphs[graph[self._GRAPHID]] = graph
-        logging.info('add_all_host: Got %d graphs', len(graphs))
-        return self.add_graphs_to_screen(screen, graphs, options)
-
     def add_screenitem(self, screenid, graphid, x, y, options):
         '''Adds one graph to a screen, possibly explicitly setting the height or
         width of the graph.
@@ -338,6 +316,31 @@ class Client(object):
                                                                                        screen[self._VSIZE])
         
 
+    def add_all_host(self, screen, options):
+        '''Add all of the graphs associated with the given host to the given
+        screen.
+        :param screen: Zabbix screen object
+        :param options: result of CLI parsing
+        '''
+        if not options.add_all_host: # Check to see if we're adding host graphs
+            return                   # Bail if not
+
+        # Get our host information
+        host = self.get_host(options.add_all_host)
+        if not host:
+            return 'Unable to find host %s' % options.add_all_host
+        logging.debug('add_all_host: hostid is %d', host[self._HOSTID])
+
+        # Get the graph set for the host in question.
+        filter = re.compile(options.filter)
+        graphs = self.z.graph.get({self._HOSTIDS: host[self._HOSTID], self._OUTPUT: self._EXTEND})
+        graphs.sort(key=operator.itemgetter(self._NAME))
+        logging.info('add_all_host: Got %d graphs', len(graphs))
+        graphs = [x for x in graphs if filter.search(x[self._NAME])]
+        if not graphs: return 'All graphs filtered out'
+        
+        return self.add_graphs_to_screen(screen, graphs, options)
+
     def add_all_group(self, screen, options):
         '''Add all of the graphs associated with the given hostgroup to the given
         screen.
@@ -356,8 +359,9 @@ class Client(object):
         filter = re.compile(options.filter)
 
         hostlist = [x[self._HOSTID] for x in hostlist if filter.search(x[self._NAME]) or filter.search(x[self._HOST])]
+        if not hostlist: return 'All hosts filtered out'
         logging.debug('add_all_group: hosts are %s', str(hostlist))
-
+        
         # Get the graph set for the hosts in question.
         graphs = self.z.graph.get({self._HOSTIDS: hostlist, self._OUTPUT: self._EXTEND,
                                    self._FILTER: {self._NAME: options.add_all_group[1]}})
