@@ -17,3 +17,23 @@ This uses the zabbix_api.py from
 https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py.
 Someone else has packaged a stale version of that as zabbix_api in the
 Python Cheese Shop, but it's stale.
+
+# Configuration
+
+Each of the above tools expects you to have a config file called ~/.zabbix
+
+The Config file should look like this:
+-------------- CUT HERE -----------------
+[zabbix]
+username='zabbix-api-user'
+password='not-your-password'
+url='http://zabbix-api.example.com/'
+
+[dev]
+username='zabbix-dev-api-user'
+password='not-mine-either'
+url='https://zabbix-dev.example.com/'
+-------------- CUT HERE -----------------
+
+The "zabbix" section is the default used by the scripts, though you can
+specify the section to use on the command line.
