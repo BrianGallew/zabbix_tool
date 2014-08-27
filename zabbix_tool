@@ -788,7 +788,7 @@ if __name__ == '__main__':
                       dest=LOGLEVEL, default=logging.ERROR, type="int",
                       help="Set logging level (0-50), defaults to 40 (only errors)")
     parser.add_option("--filter",
-                      dest=FILTER, default=None,
+                      dest=FILTER, action="append",
                       help="Only print the named field of the returned items")
 
     (options, args) = parser.parse_args()
@@ -825,7 +825,7 @@ if __name__ == '__main__':
         exit()
     if options[FILTER]:
         for name in results:
-            output = name.get(options[FILTER], None)
+            output = ' '.join([name.get(x, None) for x in options[FILTER]])
             if output:
                 print output
     else:
