@@ -5,7 +5,7 @@
 #
 
 # https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py
-import zabbix_api, sys, os, logging, ConfigParser, operator
+import zabbix_api, sys, os, logging, ConfigParser, operator, re
 from pprint import pprint
 from pydoc import render_doc
 from optparse import OptionParser
@@ -388,7 +388,26 @@ class Tool(object):
             int(t)
             return self.z.template.get({self._TEMPLATEIDS: t, self._OUTPUT:self._EXTEND})
         except:
-            return self.z.template.get({self._FILTER:{self._NAME: t}, self._OUTPUT:self._EXTEND})
+            return self.z.template.get({self._FILTER:{self._HOST: t}, self._OUTPUT:self._EXTEND})
+
+    def get_template_items(self, template):
+        '''Look up a template by name or ID number.  Returns a list of items belonging to that template (including linked items)'''
+        template_objects = [x[self._TEMPLATEID] for x in self.get_template(template)]
+        return self.z.item.get({self._HOSTIDS: template_objects, self._OUTPUT:self._EXTEND})
+
+    def mass_rename_template_items(self, template, match_re, replacement):
+        '''Look up a template by name or ID number.  Rename all items that match the RE by substituting the replacement.'''
+        replacer = re.compile(match_re)
+        results = []
+        for item in self.get_template_items(template):
+            if item.has_key(self._NAME):
+                new_name = replacer.sub(replacement, item[self._NAME])
+                if new_name != item[self._NAME]:
+                    results.append(self.z.item.update({self._ITEMID:item[self._ITEMID], self._NAME:new_name}))
+            new_name = replacer.sub(replacement, item[self._DESCRIPTION])
+            if new_name != item[self._DESCRIPTION]:
+                results.append(self.z.item.update({self._ITEMID:item[self._ITEMID], self._DESCRIPTION:new_name}))
+        return results
 
     def get_template_hosts(self, t):
         '''Look up all the hosts that use the given template.'''
