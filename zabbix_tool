@@ -5,7 +5,13 @@
 #
 
 # https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py
-import zabbix_api, sys, os, logging, ConfigParser, operator, re
+import zabbix_api
+import sys
+import os
+import logging
+import ConfigParser
+import operator
+import re
 from pprint import pprint
 from pydoc import render_doc
 from optparse import OptionParser
@@ -35,11 +41,13 @@ url='https://zabbix-dev.example.com/'
 
 By default, %s will use the [zabbix] paragraph, but if you use the
 -s/--section option, you can tell %s to use a different section.
-''' % (sys.argv[0],sys.argv[0],sys.argv[0])
+''' % (sys.argv[0], sys.argv[0], sys.argv[0])
 
 # {{{ class Tool
 
+
 class Tool(object):
+
     '''Zabbix API CLI tool.  All public functions should return a list
     which will be printed and summarized.'''
     # {{{ commonly used words, interned for my pleasure
@@ -80,7 +88,7 @@ class Tool(object):
 
     def _start(self, url, username, password, timeout=60, loglevel=logging.ERROR, **kwargs):
         # Connect to Zabbix server
-        self.z=zabbix_api.ZabbixAPI(server=url, timeout=timeout)
+        self.z = zabbix_api.ZabbixAPI(server=url, timeout=timeout)
         self.z.set_log_level(loglevel)
         self.z.login(user=username, password=password)
         return
@@ -91,7 +99,7 @@ class Tool(object):
         '''This mostly a demonstration function that will print the
         5-minute load average for all of the hosts in a single
         hostgroup.'''
-        item_name='system.cpu.load[,avg5]'
+        item_name = 'system.cpu.load[,avg5]'
 
         for host in self.get_hostgroup_hosts(hg):
             hostname = host[self._HOST]
@@ -99,9 +107,9 @@ class Tool(object):
             print "Host-ID:", host[self._HOSTID]
 
             item = self.z.item.get({
-                self._OUTPUT:self._EXTEND, 
-                self._HOSTIDS:host[self._HOSTID],
-                self._FILTER:{self._KEY:item_name}})
+                self._OUTPUT: self._EXTEND,
+                self._HOSTIDS: host[self._HOSTID],
+                self._FILTER: {self._KEY: item_name}})
             if item:
                 print item[0]['lastvalue']
                 print "Item-ID:", item[0][self._ITEMID]
@@ -111,10 +119,11 @@ class Tool(object):
                     'history': item[0]['value_type'],
                     self._ITEMIDS: item[0][self._ITEMID],
                     self._OUTPUT: self._EXTEND,
-                    self._SORTFIELD:'clock', # Sort by timestamp from new to old
-                    self._SORTORDER:'DESC',
-                    self._LIMIT: 1, # Get only the first (=newest) entry
-                    })
+                    # Sort by timestamp from new to old
+                    self._SORTFIELD: 'clock',
+                    self._SORTORDER: 'DESC',
+                    self._LIMIT: 1,  # Get only the first (=newest) entry
+                })
 
                 # CAVEAT! The history.get function must be told which type the
                 # values are (float, text, etc.). The item.value_type contains
@@ -137,18 +146,19 @@ class Tool(object):
         '''Look up a hostgroup by name or ID number.  Returns a list with a single element'''
         try:
             int(hg)
-            return self.z.hostgroup.get({self._GROUPIDS: hg, self._OUTPUT:self._EXTEND})
+            return self.z.hostgroup.get({self._GROUPIDS: hg, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.hostgroup.get({self._FILTER:{self._NAME: hg}})
+            return self.z.hostgroup.get({self._FILTER: {self._NAME: hg}})
 
     def get_hostgroup_hosts(self, hg):
         '''Look up all of the hosts which belong to a given hostgroup.'''
         hg = [x[self._GROUPID] for x in self.get_hostgroup(hg)]
-        if not hg: return hg
+        if not hg:
+            return hg
         hosts = []
-        for x in self.z.hostgroup.get({ self._GROUPIDS: hg, 
-                                        self._SELECTHOSTS:self._EXTEND
-                                        }):
+        for x in self.z.hostgroup.get({self._GROUPIDS: hg,
+                                       self._SELECTHOSTS: self._EXTEND
+                                       }):
             hosts.extend(x[self._HOSTS])
         hosts.sort(key=operator.itemgetter(self._HOST))
         return hosts
@@ -175,41 +185,45 @@ class Tool(object):
         '''Look up a host by name or ID number.  Returns a list with a single element'''
         try:
             int(h)
-            return self.z.host.get({self._HOSTIDS: h, self._OUTPUT:self._EXTEND})
+            return self.z.host.get({self._HOSTIDS: h, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.host.get({self._FILTER:{self._NAME: h}})
+            return self.z.host.get({self._FILTER: {self._NAME: h}})
 
     def get_host_applications(self, hostname):
         '''List all of the applications represented on the given host.'''
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
-        return self.z.application.get({self._HOSTIDS: hosts, self._OUTPUT:self._EXTEND})
+        return self.z.application.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
     def get_host_discovery_rule(self, hostname, discoveryrule):
         '''Get the actual discovery rule objects associated with a hostname
         and discovery rule name.'''
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
-        return self.z.discoveryrule.get({self._FILTER:{self._NAME: discoveryrule}, self._HOSTIDS: hosts, self._OUTPUT:self._EXTEND})
+        return self.z.discoveryrule.get({self._FILTER: {self._NAME: discoveryrule}, self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
     def get_host_application_items(self, hostname, application):
         '''Given a hostname and an application name, return the list if
         items which match both.'''
         hosts = [x[self._HOSTID] for x in self. get_host(hostname)]
-        apps = [x[self._APPLICATIONID] for x in self.z.application.get({self._FILTER:{self._NAME: application}, self._HOSTIDS:hosts})]
-        return self.z.item.get({self._HOSTIDS: hosts, self._APPLICATIONIDS: apps, self._OUTPUT:self._EXTEND})
+        apps = [x[self._APPLICATIONID] for x in self.z.application.get(
+            {self._FILTER: {self._NAME: application}, self._HOSTIDS: hosts})]
+        return self.z.item.get({self._HOSTIDS: hosts, self._APPLICATIONIDS: apps, self._OUTPUT: self._EXTEND})
 
     def get_host_application_triggers(self, hostname, application):
         '''Given a hostname and an application name, return the list if
         triggers which match both.'''
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
-        apps = self.z.application.get({self._FILTER:{self._NAME: application}, self._HOSTIDS:hosts})
+        apps = self.z.application.get(
+            {self._FILTER: {self._NAME: application}, self._HOSTIDS: hosts})
         return self.z.trigger.get({self._HOSTIDS: hosts, self._APPLICATIONIDS: apps})
 
     def delete_host_application_items(self, hostname, application, doit=False):
         '''Given a hostname and an application name, delete all the items
         which match both if the final parameter is True (defaults to
         False).'''
-        items = [x[self._ITEMID] for x in self.get_host_application_items(hostname, application)]
-        if not items: return None
+        items = [x[self._ITEMID]
+                 for x in self.get_host_application_items(hostname, application)]
+        if not items:
+            return None
         if doit:
             return self.z.item.delete(items)
         print 'would have deleted the following %d items:' % len(items)
@@ -220,8 +234,10 @@ class Tool(object):
         '''Given a hostname and an application name, delete all the triggers
         which match both if the final parameter is True (defaults to
         False).'''
-        triggers = [x[self._ITEMID] for x in self.get_host_application_triggers(hostname, application)]
-        if not triggers: return None
+        triggers = [x[self._ITEMID]
+                    for x in self.get_host_application_triggers(hostname, application)]
+        if not triggers:
+            return None
         if doit:
             return self.z.trigger.delete(triggers)
         print 'would have deleted the following %d triggers:' % len(triggers)
@@ -235,8 +251,10 @@ class Tool(object):
         self.delete_host_application_items(hostname, application, doit)
         self.delete_host_application_triggers(hostname, application, doit)
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
-        apps = [x[self._APPLICATIONID] for x in self.z.application.get({self._HOSTIDS: hosts, self._FILTER:{self._NAME: application}})]
-        if not apps: return None
+        apps = [x[self._APPLICATIONID] for x in self.z.application.get(
+            {self._HOSTIDS: hosts, self._FILTER: {self._NAME: application}})]
+        if not apps:
+            return None
         if doit:
             return self.z.application.delete(apps)
         print 'would have deleted the following %d applications:' % len(apps)
@@ -249,7 +267,8 @@ class Tool(object):
             print 'No such template: %s' % template
             return []
         template_id = template_objects[0][self._TEMPLATEID]
-        host_list =  self.z.host.get({self._TEMPLATEIDS: template_id, self._OUTPUT: self._EXTEND})
+        host_list = self.z.host.get(
+            {self._TEMPLATEIDS: template_id, self._OUTPUT: self._EXTEND})
         print host_list[0]
         return [x for x in host_list if x['proxy_hostid'] == u'0']
 
@@ -260,30 +279,33 @@ class Tool(object):
         '''Look up a proxy by name or ID number.  Returns a list with a single element'''
         try:
             int(p)
-            return self.z.proxy.get({self._PROXYIDS: p, self._OUTPUT:self._EXTEND})
+            return self.z.proxy.get({self._PROXYIDS: p, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.proxy.get({self._FILTER:{self._HOST: p}, self._OUTPUT:self._EXTEND})
+            return self.z.proxy.get({self._FILTER: {self._HOST: p}, self._OUTPUT: self._EXTEND})
 
     def get_proxy_interfaces(self, p):
         '''Look up a proxy by name or ID number.  Returns a list with a single element'''
         try:
             int(p)
-            return self.z.proxy.get({self._PROXYIDS: p, self._OUTPUT:self._EXTEND, 'selectInterfaces': self._EXTEND})
+            return self.z.proxy.get({self._PROXYIDS: p, self._OUTPUT: self._EXTEND, 'selectInterfaces': self._EXTEND})
         except:
-            return self.z.proxy.get({self._FILTER:{self._HOST: p}, self._OUTPUT:self._EXTEND, 'selectInterfaces': self._EXTEND})
+            return self.z.proxy.get({self._FILTER: {self._HOST: p}, self._OUTPUT: self._EXTEND, 'selectInterfaces': self._EXTEND})
 
     def assign_proxy_hosts(self, proxyname, *args):
         '''Assign hosts to a proxy.  Takes the name of a proxy (e.g. YVR01)
         and a list of hostnames.'''
         if not args:
-            parser.print_help("no hostname(s) passed in for adding to %s" % proxyname)
+            parser.print_help(
+                "no hostname(s) passed in for adding to %s" % proxyname)
             exit()
         # First, the the proxyid as a list
-        proxy = self.z.proxy.get({self._FILTER:{self._HOST: proxyname}, self._OUTPUT:self._EXTEND})[0][self._PROXYID]
+        proxy = self.z.proxy.get(
+            {self._FILTER: {self._HOST: proxyname}, self._OUTPUT: self._EXTEND})[0][self._PROXYID]
         # Now update the hosts from the CLI
         results = []
         for a in args:
-            host = self.z.host.get({self._FILTER:{self._NAME: a}, self._OUTPUT:self._EXTEND})[0]
+            host = self.z.host.get(
+                {self._FILTER: {self._NAME: a}, self._OUTPUT: self._EXTEND})[0]
             host['proxy_hostid'] = proxy
             results.append(self.z.host.update(host))
         return results
@@ -293,7 +315,8 @@ class Tool(object):
         Takes the name of a source proxy and destination proxy (e.g. YVR01
         YVR02).'''
         # First, the the proxyid as a list
-        dest = self.z.proxy.get({self._FILTER:{self._HOST: dest}, self._OUTPUT:self._EXTEND})[0][self._PROXYID]
+        dest = self.z.proxy.get(
+            {self._FILTER: {self._HOST: dest}, self._OUTPUT: self._EXTEND})[0][self._PROXYID]
         # Now update the hosts from the CLI
         results = []
         for host in self.get_hosts_assigned_to_proxy(source):
@@ -304,7 +327,8 @@ class Tool(object):
     def get_hosts_assigned_to_proxy(self, proxyname):
         '''List hosts assigned to a proxy.  Takes the name of a proxy (e.g. YVR01).'''
         # First, the the proxyid as a list
-        results = self.z.proxy.get({self._FILTER:{self._HOST: proxyname}, 'selectHosts':self._EXTEND})[0][self._HOSTS]
+        results = self.z.proxy.get(
+            {self._FILTER: {self._HOST: proxyname}, 'selectHosts': self._EXTEND})[0][self._HOSTS]
         # Now update the hosts from the CLI
         return results
 
@@ -315,36 +339,39 @@ class Tool(object):
         '''Look up an item by name or ID number.  Returns a list with a single element'''
         try:
             int(i)
-            return self.z.item.get({self._ITEMIDS: i, self._OUTPUT:self._EXTEND})
+            return self.z.item.get({self._ITEMIDS: i, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.item.get({self._FILTER:{self._NAME: i}})
+            return self.z.item.get({self._FILTER: {self._NAME: i}})
 
     def get_item_host(self, i, h):
         '''Look up an item by name or ID number for a given host.  Returns a list with a single element'''
         hosts = [x[self._HOSTID] for x in self.get_host(h)]
         try:
             int(i)
-            return self.z.item.get({self._ITEMIDS: i, self._HOSTIDS: hosts, self._OUTPUT:self._EXTEND})
+            return self.z.item.get({self._ITEMIDS: i, self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.item.get({self._FILTER:{self._NAME: i}, self._HOSTIDS: hosts})
+            return self.z.item.get({self._FILTER: {self._NAME: i}, self._HOSTIDS: hosts})
 
     def get_host_items(self, hostname):
         '''Return all of the items for a single host.'''
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
-        return self.z.item.get({self._HOSTIDS: hosts, self._OUTPUT:self._EXTEND})
+        return self.z.item.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
     def get_items_with_template(self, item, template):
         '''Return matching items from hosts with the given template'''
         hosts = [x[self._HOSTID] for x in self.get_template_hosts(template)]
-        return self.z.item.get({self._FILTER:{self._NAME: item}, self._HOSTIDS: hosts, self._OUTPUT:self._EXTEND})
+        return self.z.item.get({self._FILTER: {self._NAME: item}, self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
     def delete_items_with_template(self, item, template, doit=False):
         '''Delete matching items from hosts with the given template'''
         hosts = [x[self._HOSTID] for x in self.get_template_hosts(template)]
-        items = self.z.item.get({self._FILTER:{self._NAME: item}, self._HOSTIDS: hosts, self._OUTPUT:self._EXTEND})
-        if not items: return []
+        items = self.z.item.get(
+            {self._FILTER: {self._NAME: item}, self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
+        if not items:
+            return []
         itemids = [x[self._ITEMID] for x in items]
-        if not itemids: return []
+        if not itemids:
+            return []
         if doit:
             print self.z.item.delete(itemids)
             return []
@@ -355,7 +382,8 @@ class Tool(object):
         '''From a given host, Delete the item or items that matched the passed in value (ID or name).'''
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
         items = [x[self._ITEMID] for x in self.get_item(item)]
-        if not items: return None
+        if not items:
+            return None
         if doit:
             return self.z.item.delete(items)
         print 'would have deleted the following %d items:' % len(items)
@@ -364,7 +392,8 @@ class Tool(object):
     def delete_items(self, item, doit=False):
         '''Delete the item or items that match the passed in value (ID or name).'''
         items = [x[self._ITEMID] for x in self.get_item(item)]
-        if not items: return []
+        if not items:
+            return []
         if doit:
             return self.z.item.delete(items)
         print 'would have deleted the following %d items:' % len(items)
@@ -373,11 +402,12 @@ class Tool(object):
 
     def get_unsupported_item_hosts(self, item):
         '''One-off function for looking for a particular item.  Do not use.'''
-        all = self.z.item.get({self._FILTER:{self._NAME:item, self._ERROR: 'Received value [10000Mb/s] is not suitable for value type [Numeric (unsigned)] and data type [Decimal]'}, self._OUTPUT:self._EXTEND})
+        all = self.z.item.get({self._FILTER: {self._NAME: item, self._ERROR:
+                                              'Received value [10000Mb/s] is not suitable for value type [Numeric (unsigned)] and data type [Decimal]'}, self._OUTPUT: self._EXTEND})
         for a in all:
             print a[self._NAME], a[self._ERROR], a['key_']
         items = [x[self._ITEMID] for x in all]
-        return self.z.host.get({self._ITEMIDS: items, self._OUTPUT:self._EXTEND})
+        return self.z.host.get({self._ITEMIDS: items, self._OUTPUT: self._EXTEND})
 
     # }}}
     # {{{ template functions
@@ -386,14 +416,15 @@ class Tool(object):
         '''Look up a template by name or ID number.  Returns a list with a single element'''
         try:
             int(t)
-            return self.z.template.get({self._TEMPLATEIDS: t, self._OUTPUT:self._EXTEND})
+            return self.z.template.get({self._TEMPLATEIDS: t, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.template.get({self._FILTER:{self._HOST: t}, self._OUTPUT:self._EXTEND})
+            return self.z.template.get({self._FILTER: {self._HOST: t}, self._OUTPUT: self._EXTEND})
 
     def get_template_items(self, template):
         '''Look up a template by name or ID number.  Returns a list of items belonging to that template (including linked items)'''
-        template_objects = [x[self._TEMPLATEID] for x in self.get_template(template)]
-        return self.z.item.get({self._HOSTIDS: template_objects, self._OUTPUT:self._EXTEND})
+        template_objects = [x[self._TEMPLATEID]
+                            for x in self.get_template(template)]
+        return self.z.item.get({self._HOSTIDS: template_objects, self._OUTPUT: self._EXTEND})
 
     def mass_rename_template_items(self, template, match_re, replacement):
         '''Look up a template by name or ID number.  Rename all items that match the RE by substituting the replacement.'''
@@ -403,16 +434,18 @@ class Tool(object):
             if item.has_key(self._NAME):
                 new_name = replacer.sub(replacement, item[self._NAME])
                 if new_name != item[self._NAME]:
-                    results.append(self.z.item.update({self._ITEMID:item[self._ITEMID], self._NAME:new_name}))
+                    results.append(
+                        self.z.item.update({self._ITEMID: item[self._ITEMID], self._NAME: new_name}))
             new_name = replacer.sub(replacement, item[self._DESCRIPTION])
             if new_name != item[self._DESCRIPTION]:
-                results.append(self.z.item.update({self._ITEMID:item[self._ITEMID], self._DESCRIPTION:new_name}))
+                results.append(self.z.item.update(
+                    {self._ITEMID: item[self._ITEMID], self._DESCRIPTION: new_name}))
         return results
 
     def get_template_hosts(self, t):
         '''Look up all the hosts that use the given template.'''
         template = [x[self._TEMPLATEID] for x in self.get_template(t)]
-        return self.z.host.get({self._TEMPLATEIDS: template, self._OUTPUT:self._EXTEND})
+        return self.z.host.get({self._TEMPLATEIDS: template, self._OUTPUT: self._EXTEND})
 
     def link_template_to_host(self, template, host):
         '''Link the given template to the given host.  Takes names or IDs.'''
@@ -420,17 +453,19 @@ class Tool(object):
         host = self.get_host(host)
         print template
         print host
-        return self.z.template.massadd({self._TEMPLATES:template, self._HOSTS:host})
+        return self.z.template.massadd({self._TEMPLATES: template, self._HOSTS: host})
 
     def link_template_parent_to_child(self, parent, child):
         '''Makes the child template a linked template of the parent template.'''
         pid = self.get_template(parent)
-        if not pid: usage('No such template: %s' % pid)
+        if not pid:
+            usage('No such template: %s' % pid)
         pid = pid[0]
         cid = self.get_template(child)
-        if not cid: usage('No such template: %s' % cid)
+        if not cid:
+            usage('No such template: %s' % cid)
         pid[self._TEMPLATES] = cid
-        pprint( pid)
+        pprint(pid)
         return self.z.template.update(pid)
 
     def get_template_triggers_without_urls(self, group):
@@ -438,7 +473,8 @@ class Tool(object):
         tmpl_hg = self.get_hostgroup(group)[0]['groupid']
 
         output = []
-        tmpls = self.z.template.get({self._GROUPIDS: tmpl_hg, self._OUTPUT:self._EXTEND, self._SELECTTRIGGERS:self._EXTEND})
+        tmpls = self.z.template.get(
+            {self._GROUPIDS: tmpl_hg, self._OUTPUT: self._EXTEND, self._SELECTTRIGGERS: self._EXTEND})
         for tmpl in tmpls:
             for trig in tmpl['triggers']:
                 if trig['url'] == '':
@@ -450,9 +486,11 @@ class Tool(object):
         h = self.get_template(h)[0]
         kwargs = {}
         for line in args:
-            key, value = line.split('=',1)
-            try: kwargs[key] = int(value)
-            except: kwargs[key] = value
+            key, value = line.split('=', 1)
+            try:
+                kwargs[key] = int(value)
+            except:
+                kwargs[key] = value
         kwargs[self._HOSTID] = h[self._HOSTID]
         return self.z.item.create(kwargs)
 
@@ -463,14 +501,14 @@ class Tool(object):
         '''Look up an appliation by name or ID number.  Returns a list with a single element'''
         try:
             int(hg)
-            return self.z.application.get({self._APPLICATIONIDS: hg, self._OUTPUT:self._EXTEND})
+            return self.z.application.get({self._APPLICATIONIDS: hg, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.application.get({self._FILTER:{self._NAME: hg}, self._OUTPUT:self._EXTEND, self._LIMIT:limit})
+            return self.z.application.get({self._FILTER: {self._NAME: hg}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
 
     def get_application_items(self, app, limit=10):
         '''Look up all the items which are part of the given application, limit 10 by default.'''
         appids = [x[self._APPLICATIONID] for x in self.get_application(app)]
-        return self.z.item.get({self._APPLICATIONIDS: appids, self._OUTPUT:self._EXTEND, self._LIMIT:limit})
+        return self.z.item.get({self._APPLICATIONIDS: appids, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
 
     def delete_application_from_hosts(self, application, limit=1, doit=False):
         '''Delete an application from some number of hosts, limited to one
@@ -482,9 +520,11 @@ class Tool(object):
         while apps and (count < limit):
             a = apps.pop(0)
             h = get_host(a[self._HOSTID])
-            if not h: continue      # It was a template
+            if not h:
+                continue      # It was a template
             count += 1
-            resultset.append(self.delete_host_application(h[0][self._NAME], application, doit))
+            resultset.append(
+                self.delete_host_application(h[0][self._NAME], application, doit))
         return resultset
 
     # }}}
@@ -494,18 +534,19 @@ class Tool(object):
         '''Look up a discovery rule by name or ID number.  Returns a list.'''
         try:
             int(hg)
-            return self.z.discoveryrule.get({self._ITEMIDS: hg, self._OUTPUT:self._EXTEND})
+            return self.z.discoveryrule.get({self._ITEMIDS: hg, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.discoveryrule.get({self._FILTER:{self._NAME: hg}, self._OUTPUT:self._EXTEND, self._LIMIT:limit})
+            return self.z.discoveryrule.get({self._FILTER: {self._NAME: hg}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
 
     def delete_discovery_rule(self, hg, doit=False):
         '''Delete a discovery rule from all hosts/templates.  Defaults to dry-run only.'''
         try:
             int(hg)
-            rules = [hg,]
+            rules = [hg, ]
         except:
             rules = [x[self._ITEMID] for x in self.get_discovery_rule(hg)]
-        if not rules: return None
+        if not rules:
+            return None
         if doit:
             return self.z.discoveryrule.delete(rules)
         print 'would have deleted the following %d rules:' % len(rules)
@@ -520,7 +561,8 @@ class Tool(object):
         while rules and (count < limit):
             a = rules.pop(0)
             h = self.get_host(a[self._HOSTID])
-            if not h: continue      # It was a template
+            if not h:
+                continue      # It was a template
             count += 1
             resultset.append(self.delete_discovery_rule(a[self._ITEMID], doit))
         return resultset
@@ -532,33 +574,34 @@ class Tool(object):
         '''Look up a trigger by name or ID number.  Returns a list with a single element'''
         try:
             int(t)
-            return self.z.trigger.get({self._TRIGGERIDS: t, self._OUTPUT:self._EXTEND})
+            return self.z.trigger.get({self._TRIGGERIDS: t, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.trigger.get({self._FILTER:{self._NAME: t}, self._OUTPUT:self._EXTEND})
+            return self.z.trigger.get({self._FILTER: {self._NAME: t}, self._OUTPUT: self._EXTEND})
 
     def get_trigger_hosts(self, trigger):
         '''List all the hosts with the given trigger.'''
         triggers = self.get_trigger(trigger)
-        return self.z.trigger.get({self._TRIGGERIDS: triggers, self._OUTPUT:self._EXTEND})
+        return self.z.trigger.get({self._TRIGGERIDS: triggers, self._OUTPUT: self._EXTEND})
 
     def delete_trigger(self, trigger, doit=False):
         '''Delete the given trigger.  Defaults to dry-run only.'''
         try:
             int(trigger)
-            triggers = [trigger,]
+            triggers = [trigger, ]
         except:
             triggers = [x[self._ITEMID] for x in self.get_trigger(trigger)]
-        if not triggers: return None
+        if not triggers:
+            return None
         if doit:
             return self.z.trigger.delete(triggers)
         print 'would have deleted the following %d triggers:' % len(triggers)
         return triggers
 
-        return self.z.trigger.get({self._TRIGGERIDS: triggers, self._OUTPUT:self._EXTEND})
+        return self.z.trigger.get({self._TRIGGERIDS: triggers, self._OUTPUT: self._EXTEND})
 
     def find_trigger(self, term, limit=10):
         '''Search trigger descriptions for a given string.'''
-        return self.z.trigger.get({self._SEARCH:{self._DESCRIPTION:term, self._SEARCHWILDCARDSENABLED:True}, self._OUTPUT:self._EXTEND, self._LIMIT:limit})
+        return self.z.trigger.get({self._SEARCH: {self._DESCRIPTION: term, self._SEARCHWILDCARDSENABLED: True}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
 
     # }}}
     # {{{ prototype functions
@@ -566,18 +609,17 @@ class Tool(object):
         '''Look up an itemprototype.  Returns a list'''
         try:
             int(ip)
-            return self.z.itemprototype.get({self._ITEMIDS: ip, self._OUTPUT:self._EXTEND})
+            return self.z.itemprototype.get({self._ITEMIDS: ip, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.itemprototype.get({self._FILTER:{self._NAME: ip}, self._OUTPUT:self._EXTEND, self._LIMIT:limit})
-        
+            return self.z.itemprototype.get({self._FILTER: {self._NAME: ip}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
 
     def get_trigger_prototype(self, ip, limit=0):
         '''Look up a triggerprototype.  Returns a list'''
         try:
             int(ip)
-            return self.z.triggerprototype.get({self._TRIGGERIDS: ip, self._OUTPUT:self._EXTEND})
+            return self.z.triggerprototype.get({self._TRIGGERIDS: ip, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.triggerprototype.get({self._FILTER:{self._NAME: ip}, self._OUTPUT:self._EXTEND, self._LIMIT:limit})
+            return self.z.triggerprototype.get({self._FILTER: {self._NAME: ip}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
     # }}}
     # {{{special_lld_in_template( template_name, key, lld_name):
 
@@ -594,114 +636,114 @@ class Tool(object):
         '''
         template = self.get_template(template_name)[0]
         lld = self.z.discoveryrule.create({
-                  u'key_': "vfs.fs.discovery_llnw[%s]" % key,
-                  self._NAME: lld_name,
-                  self._HOSTID: template[self._HOSTID],
-                  'type': "0",
-                  'delay': 21600,
-                  'filter': '{#%s}:^\/d\d+' % key.upper(),
-                  'status': '1', # 1 is disabled
-                  'interfaceid': "0",
-                })
-        lld = self.get_discovery_rule(lld[self._ITEMIDS][0],1)[0]
-        
+            u'key_': "vfs.fs.discovery_llnw[%s]" % key,
+            self._NAME: lld_name,
+            self._HOSTID: template[self._HOSTID],
+            'type': "0",
+            'delay': 21600,
+            'filter': '{#%s}:^\/d\d+' % key.upper(),
+            'status': '1',  # 1 is disabled
+            'interfaceid': "0",
+        })
+        lld = self.get_discovery_rule(lld[self._ITEMIDS][0], 1)[0]
+
         itemprototypes = self.z.itemprototype.create([
-                { 'ruleid': lld[self._ITEMID],
-                  'delay': '1800',
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'key_': 'vfs.fs.size[{#%s},free]' % key.upper(),
-                  'name': 'Free disk space on {#%s}' % key.upper(),
-                  'type': '0',
-                  'value_type': '3',
-                  'history': '7',
-                  'units': 'B'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '1800',
-                  'key_': 'vfs.fs.size[{#%s},pfree]' % key.upper(),
-                  'name': 'Free disk space on {#%s} in %%' % key.upper(),
-                  'units': '%',
-                  'value_type': '0'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '900',
-                  'key_': 'vfs.fs.inode[{#%s},pfree]' % key.upper(),
-                  'name': 'Free number of inodes on {#%s} in %%' % key.upper(),
-                  'units': '%',
-                  'value_type': '0'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '600',
-                  'key_': 'mountpoint[{#%s}]' % key.upper(),
-                  'name': 'Mount point status for {#%s}' % key.upper(),
-                  'units': '',
-                  'value_type': '3'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '21600',
-                  'key_': 'vfs.fs.size[{#%s},total]' % key.upper(),
-                  'name': 'Total disk space on {#%s}' % key.upper(),
-                  'units': 'B',
-                  'value_type': '3'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '21600',
-                  'key_': 'vfs.fs.inode[{#%s},total]' % key.upper(),
-                  'name': 'Total number of inodes on {#%s}' % key.upper(),
-                  'units': '',
-                  'value_type': '3'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '1800',
-                  'key_': 'vfs.fs.size[{#%s},used]' % key.upper(),
-                  'name': 'Used disk space on {#%s}' % key.upper(),
-                  'units': 'B',
-                  'value_type': '3'},
-                { 'ruleid': lld[self._ITEMID],
-                  'hostid': lld[self._HOSTID],
-                  'interfaceid': "0",
-                  'type': '0',
-                  'history': '7',
-                  'delay': '600',
-                  'key_': 'vfs.fs.size[{#%s},pused]' % key.upper(),
-                  'name': 'Used disk space on {#%s} in %%' % key.upper(),
-                  'units': '%',
-                  'value_type': '0'}
-                ])
+            {'ruleid': lld[self._ITEMID],
+             'delay': '1800',
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'key_': 'vfs.fs.size[{#%s},free]' % key.upper(),
+             'name': 'Free disk space on {#%s}' % key.upper(),
+             'type': '0',
+             'value_type': '3',
+             'history': '7',
+             'units': 'B'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '1800',
+             'key_': 'vfs.fs.size[{#%s},pfree]' % key.upper(),
+             'name': 'Free disk space on {#%s} in %%' % key.upper(),
+             'units': '%',
+             'value_type': '0'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '900',
+             'key_': 'vfs.fs.inode[{#%s},pfree]' % key.upper(),
+             'name': 'Free number of inodes on {#%s} in %%' % key.upper(),
+             'units': '%',
+             'value_type': '0'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '600',
+             'key_': 'mountpoint[{#%s}]' % key.upper(),
+             'name': 'Mount point status for {#%s}' % key.upper(),
+             'units': '',
+             'value_type': '3'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '21600',
+             'key_': 'vfs.fs.size[{#%s},total]' % key.upper(),
+             'name': 'Total disk space on {#%s}' % key.upper(),
+             'units': 'B',
+             'value_type': '3'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '21600',
+             'key_': 'vfs.fs.inode[{#%s},total]' % key.upper(),
+             'name': 'Total number of inodes on {#%s}' % key.upper(),
+             'units': '',
+             'value_type': '3'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '1800',
+             'key_': 'vfs.fs.size[{#%s},used]' % key.upper(),
+             'name': 'Used disk space on {#%s}' % key.upper(),
+             'units': 'B',
+             'value_type': '3'},
+            {'ruleid': lld[self._ITEMID],
+             'hostid': lld[self._HOSTID],
+             'interfaceid': "0",
+             'type': '0',
+             'history': '7',
+             'delay': '600',
+             'key_': 'vfs.fs.size[{#%s},pused]' % key.upper(),
+             'name': 'Used disk space on {#%s} in %%' % key.upper(),
+             'units': '%',
+             'value_type': '0'}
+        ])
 
         triggerprototypes = self.z.triggerprototype.create([
-                {'description': 'directory {#%s} does not exist on {HOSTNAME}' % key.upper(),
-                 'expression': '{%s:mountpoint[{#%s}].last(0)}=2' % (template[self._HOST],key.upper()),
-                 'priority': 1},
-                {'description': 'directory {#%s} is not a moint point on {HOSTNAME}' % key.upper(),
-                 'expression': '{%s:mountpoint[{#%s}].last(0)}=1' % (template[self._HOST],key.upper()),
-                 'priority': 1},
-                {'description': 'Disk utilization on {#%s} above 98%% on {HOSTNAME}' % key.upper(),
-                 'expression': '{%s:vfs.fs.size[{#%s},pused].last(0)}>98' % (template[self._HOST],key.upper()),
-                 'priority': 1},
-                {'description': 'Free Inodes on {#%s} below 10%% on {HOSTNAME}' % key.upper(),
-                 'expression': '{%s:vfs.fs.inode[{#%s},pfree].last(0)}<10' % (template[self._HOST],key.upper()),
-                 'priority': 1},   # Information
-                ])
+            {'description': 'directory {#%s} does not exist on {HOSTNAME}' % key.upper(),
+             'expression': '{%s:mountpoint[{#%s}].last(0)}=2' % (template[self._HOST], key.upper()),
+             'priority': 1},
+            {'description': 'directory {#%s} is not a moint point on {HOSTNAME}' % key.upper(),
+             'expression': '{%s:mountpoint[{#%s}].last(0)}=1' % (template[self._HOST], key.upper()),
+             'priority': 1},
+            {'description': 'Disk utilization on {#%s} above 98%% on {HOSTNAME}' % key.upper(),
+             'expression': '{%s:vfs.fs.size[{#%s},pused].last(0)}>98' % (template[self._HOST], key.upper()),
+             'priority': 1},
+            {'description': 'Free Inodes on {#%s} below 10%% on {HOSTNAME}' % key.upper(),
+             'expression': '{%s:vfs.fs.inode[{#%s},pfree].last(0)}<10' % (template[self._HOST], key.upper()),
+             'priority': 1},   # Information
+        ])
 
         return (lld, itemprototypes, triggerprototypes)
 
@@ -710,7 +752,9 @@ class Tool(object):
     # }}}
 # {{{ class MyParser
 
+
 class MyParser(OptionParser):
+
     def format_epilog(self, formatter):
         return self.epilog
 
@@ -729,7 +773,7 @@ if __name__ == '__main__':
                       dest=LOGLEVEL, default=logging.ERROR, type="int",
                       help="Set logging level (0-50), defaults to 40 (only errors)")
     parser.add_option("--filter",
-                      dest=FILTER, default=None, 
+                      dest=FILTER, default=None,
                       help="Only print the named field of the returned items")
 
     (options, args) = parser.parse_args()
@@ -752,23 +796,26 @@ if __name__ == '__main__':
         parser.print_help()
         exit()
     func = args.pop(0)
-    try: cmd = eval('tool.' + func)
+    try:
+        cmd = eval('tool.' + func)
     except:
         print 'No such function: %s' % func
         parser.print_help()
         exit()
 
-    try: results = cmd(*args)
+    try:
+        results = cmd(*args)
     except TypeError:
         print render_doc(cmd)
         exit()
     if options[FILTER]:
         for name in results:
             output = name.get(options[FILTER], None)
-            if output: print output
+            if output:
+                print output
     else:
         print '********* Results ********'
-        pprint( results)
+        pprint(results)
         print len(results)
 
         # }}}
