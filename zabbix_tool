@@ -442,6 +442,17 @@ class Tool(object):
                     {self._ITEMID: item[self._ITEMID], self._DESCRIPTION: new_name}))
         return results
 
+    def mass_rename_template_item_keys(self, template, match_re, replacement):
+        '''Look up a template by name or ID number.  Change all the keys that match the RE by substituting the replacement.'''
+        replacer = re.compile(match_re)
+        results = []
+        for item in self.get_template_items(template):
+            new_key = replacer.sub(replacement, item[self._KEY])
+            if new_key != item[self._KEY]:
+                results.append(
+                    self.z.item.update({self._ITEMID: item[self._ITEMID], self._KEY: new_key}))
+        return results
+
     def get_template_hosts(self, t):
         '''Look up all the hosts that use the given template.'''
         template = [x[self._TEMPLATEID] for x in self.get_template(t)]
