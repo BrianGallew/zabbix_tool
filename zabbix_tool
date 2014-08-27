@@ -632,7 +632,11 @@ class Tool(object):
         test-template-discovery-geek that will use BLETCHLEY as the
         differentiator in the key, with 8 items and 4 triggers.  Assuming,
         of course, that it all completes successfully.  There is a great
-        deal of contention on the `ids` table.
+        deal of contention on the `ids` table in pre-2.2.
+        :param template_name: Name of the template to be modified
+        :param key: unique value used to differentiate this LLD from others
+        :param lld_name: Name for the LLD to be added
+        :returns: (lld object, itemprototypes object list, triggerprototypes object list)
         '''
         template = self.get_template(template_name)[0]
         lld = self.z.discoveryrule.create({
