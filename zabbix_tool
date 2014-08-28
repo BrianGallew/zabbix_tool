@@ -83,6 +83,7 @@ class Tool(object):
     _TEMPLATEIDS = 'templateids'
     _TEMPLATES = 'templates'
     _TRIGGERIDS = 'triggerids'
+    _VALUE_TYPE = 'value_type'
 
     # }}}
 
@@ -451,6 +452,37 @@ class Tool(object):
             if new_key != item[self._KEY]:
                 results.append(
                     self.z.item.update({self._ITEMID: item[self._ITEMID], self._KEY: new_key}))
+        return results
+
+    def mass_template_item_update(self, template, match_re):
+        '''NEVER USE THIS.'''
+        matcher = re.compile(match_re)
+        results = []
+        for item in self.get_template_items(template):
+            if matcher.search(item[self._KEY]):
+                new_key = item[self._KEY].replace('[', '.').replace(']', '')
+                results.append(
+                    self.z.item.update({self._ITEMID: item[self._ITEMID], self._KEY: new_key}))
+        return results
+
+    def mass_template_item_replace_attribute(self, template, attribute, old_value, new_value, filter_re=None):
+        '''USING THIS CAN DESTROY YOUR TEMPLATE.
+
+        Change ATTRIBUTE on all (or filtered) items from OLD_VALUE to NEW_VALUE.
+        :param template: template to update (name or id)
+        :param attribute: attribute of each item to update
+        :param old_value: current value of the attribute (for limiting purposes)
+        :param new_value: new value of the attribute
+        :param filter_re: (optional) only match 
+        '''
+        results = []
+        if filter_re: filter_re = re.compile(filter_re)
+        for item in self.get_template_items(template):
+            if filter_re:
+                if not filter_re.search(item.get(self._NAME, '')) and not filter_re.search(item.get(self._DESCRIPTION, '')): continue
+            if item[attribute] == old_value:
+                results.append(
+                    self.z.item.update({self._ITEMID: item[self._ITEMID], attribute: new_value}))
         return results
 
     def get_template_hosts(self, t):
