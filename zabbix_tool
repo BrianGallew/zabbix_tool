@@ -462,7 +462,7 @@ class Tool(object):
             if matcher.search(item[self._KEY]):
                 new_key = item[self._KEY].replace('[', '.').replace(']', '')
                 results.append(
-                    self.z.item.update({self._ITEMID: item[self._ITEMID], self._KEY: new_key}))
+                    self.z.item.update({self._ITEMID: item[self._ITEMID], self._KEY: new_key.lower()}))
         return results
 
     def mass_template_item_replace_attribute(self, template, attribute, old_value, new_value, filter_re=None):
@@ -473,7 +473,7 @@ class Tool(object):
         :param attribute: attribute of each item to update
         :param old_value: current value of the attribute (for limiting purposes)
         :param new_value: new value of the attribute
-        :param filter_re: (optional) only match 
+        :param filter_re: (optional) only update items with name/description matching this.
         '''
         results = []
         if filter_re: filter_re = re.compile(filter_re)
