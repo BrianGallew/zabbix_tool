@@ -1,0 +1,216 @@
+#! /usr/bin/env python
+"""
+Generate URLs for graphing data items via Zabbix' chart3.php interface
+
+Based on the Python script template at
+https://github.com/BrianGallew/script_templates/blob/master/template.py
+"""
+
+import logging
+# Requires Python 2.7 or better
+import argparse
+import ConfigParser
+import os
+import urllib
+import subprocess
+
+
+def setup_logging(option_group):
+    """Sets up logging in a syslog format by log level
+    :param option_group: options as returned by the OptionParser
+    """
+    stderr_log_format = "%(levelname) -8s %(asctime)s %(funcName)s line:%(lineno)d: %(message)s"
+    file_log_format = "%(asctime)s - %(levelname)s - %(message)s"
+    logger = logging.getLogger()
+    if option_group.debug:
+        logger.setLevel(level=logging.DEBUG)
+    elif option_group.verbose:
+        logger.setLevel(level=logging.INFO)
+    else:
+        logger.setLevel(level=logging.WARNING)
+
+    handlers = []
+    if option_group.syslog:
+        handlers.append(logging.SyslogHandler(facility=option_group.syslog))
+        # Use standard format here because timestamp and level will be added by
+        # syslogd.
+    if option_group.logfile:
+        handlers.append(logging.FileHandler(option_group.logfile))
+        handlers[0].setFormatter(logging.Formatter(file_log_format))
+    if not handlers:
+        handlers.append(logging.StreamHandler())
+        handlers[0].setFormatter(logging.Formatter(stderr_log_format))
+    for handler in handlers:
+        logger.addHandler(handler)
+    return
+
+
+def colorwheel():
+    '''Simple color generator.
+    '''
+    colors = ['Red',
+              'Dark%20Green',
+              'Blue',
+              'Dark%20Yellow',
+              'Cyan',
+              'Gray',
+              'Dark%20Red',
+              'Green',
+              'Dark%20Blue',
+              'Yellow',
+              'Black',
+    ]
+    while True:
+        for color in colors:
+            yield color
+
+
+def get_credentials(option_group):
+    '''Parse the Zabbix URL/credentials out of the config file.
+    :param option_group: argparse parser results
+    :returns: credentials dictionary
+    '''
+    config = ConfigParser.ConfigParser()
+    try:
+        config.readfp(open(option_group.credential_file))
+    except Exception, e:
+        print 'Unable to parse the configuration file(%s): %s\n\n' % (option_group.credential_file, e)
+        raise
+    if not option_group.credential_section in config.sections():
+        raise SystemExit(
+            'No [%s] section in the configuration file' % option_group.credential_section)
+
+    credentials = {}
+    for (key, value) in config.items(option_group.credential_section, 1):
+        credentials[key] = eval(value)
+    return credentials
+
+
+def print_graph_url(option_group, credentials):
+    '''Compose a URL from the credentials and the results of running zabbix_tool.
+    :param option_group: argparse parser results
+    :param credentials: credential dictionary from get_credentials()
+    '''
+
+    # These are values that Zabbix desires, but I didn't feel like passing
+    # in as CLI settings.  Easily changeable.
+    zabbix_options = {
+        'graphtype': '0',
+        'percent_left': '0.00',
+        'percent_right': '0.00',
+        'ymin_type': '0',
+        'ymax_type': '0',
+        'yaxismin': '0.0000',
+        'yaxismax': '100.0000',
+        'ymin_itemid': '0',
+        'ymax_itemid': '0',
+        'showworkperiod': '1',
+    }
+
+    # Add CLI values to the zabbix_options dictionary
+    zabbix_options["period"] = str(option_group.period)
+    zabbix_options["height"] = str(option_group.height)
+    zabbix_options["width"] = str(option_group.width)
+    if option_group.legend:
+        zabbix_options["legend"] = "1"
+    else:
+        zabbix_options["legend"] = "0"
+    if option_group.show_triggers:
+        zabbix_options["showtriggers"] = "1"
+    else:
+        zabbix_options["showtriggers"] = "0"
+    if option_group.graph_name:
+        zabbix_options["name"] = option_group.graph_name
+    else:
+        zabbix_options["name"] = option_group.item
+
+    # The basic command to run zabbix_tool
+    cmd = ['zabbix_tool', '--filter', 'itemid', '-s',
+           option_group.credential_section, '-c',
+           option_group.credential_file]
+
+    # Call it with the correct function and parameters.
+    if not option_group.hostgroup:
+        cmd.extend(['get_item', option_group.item])
+    else:
+        cmd.extend(
+            ['get_hostgroup_item', option_group.item, option_group.hostgroup])
+    logging.debug(cmd)
+
+    # Run the command and save the results in items.
+    items = sorted(subprocess.check_output(cmd).split())
+
+    # URL with basic graph config, but no items
+    url = credentials['url'] + 'chart3.php?' + urllib.urlencode(zabbix_options)
+
+    # Add all of the items to the graph.  Do it with string concatenation
+    # and not just by putting the keys/values into zabbix_options because
+    # urlencoded will encode the [], resulting in FAIL.
+    c = colorwheel()
+    for i in enumerate(items,):
+        url += '&items[%d][itemid]=%s&items[%d][color]=%s' % (
+            i[0], i[1], i[0], c.next())
+
+    print url
+
+
+def main():
+    """Primary entry point."""
+    logging.debug('main')
+    parser = argparse.ArgumentParser()
+    # Standard logging options.
+    parser.add_argument("-v", "--verbose", action='store_true',
+                        default=False, help="Verbose output")
+    parser.add_argument("-d", "--debug", action='store_true',
+                        default=False, help="Debugging output")
+    parser.add_argument("--syslog", metavar="FACILITY",
+                        help="Send log messages to the syslog")
+    parser.add_argument("--logfile", metavar="FILENAME",
+                        help="Send log messages to a file")
+    # script-specific options here
+
+    parser.add_argument("--period", default=60 * 60,  # 1 hour
+                        metavar="SECONDS", type=int,
+                        help="Time window for display [default: %(default)d]")
+
+    parser.add_argument("--width", default=600,
+                        metavar="PIXELS", type=int,
+                        help="Graph width [default: %(default)d]")
+
+    parser.add_argument("--height", default=600,
+                        metavar="PIXELS", type=int,
+                        help="Graph height [default: %(default)d]")
+
+    parser.add_argument("--legend", action='store_true',
+                        default=False,
+                        help="Show legend [default: False]")
+
+    parser.add_argument("--show-triggers", action='store_true',
+                        default=False,
+                        help="Show triggers [default: False]")
+
+    parser.add_argument("--graph-name",
+                        help="Name to display on graph [default: source data name]")
+
+    parser.add_argument("--credential-file", default=os.environ.get('HOME', '') + '/.zabbix',
+                        help="Credential file [default: %(default)s]")
+
+    parser.add_argument("--credential-section", default='zabbix',
+                        help="Name of section in credential file [default: %(default)s]")
+
+    parser.add_argument("--hostgroup",
+                        help="Limit item selection to members of HOSTGROUP")
+
+    parser.add_argument(dest="item",
+                        help="Data item to be graphed")
+
+    options = parser.parse_args()
+    setup_logging(options)
+    credentials = get_credentials(options)
+    print_graph_url(options, credentials)
+
+    return
+
+
+if __name__ == '__main__':
+    main()

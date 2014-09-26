@@ -188,6 +188,8 @@ class Tool(object):
             int(h)
             return self.z.host.get({self._HOSTIDS: h, self._OUTPUT: self._EXTEND})
         except:
+            resultset = self.z.host.get({self._FILTER: {self._HOST: h}})
+            if resultset: return resultset
             return self.z.host.get({self._FILTER: {self._NAME: h}})
 
     def get_host_applications(self, hostname):
@@ -337,12 +339,12 @@ class Tool(object):
     # {{{ item rules
 
     def get_item(self, i):
-        '''Look up an item by name or ID number.  Returns a list with a single element'''
+        '''Look up an item by name or ID number.  Returns a list'''
         try:
             int(i)
             return self.z.item.get({self._ITEMIDS: i, self._OUTPUT: self._EXTEND})
         except:
-            return self.z.item.get({self._FILTER: {self._NAME: i}})
+            return self.z.item.get({self._FILTER: {self._NAME: i}, self._OUTPUT: self._EXTEND})
 
     def get_item_host(self, i, h):
         '''Look up an item by name or ID number for a given host.  Returns a list with a single element'''
@@ -358,10 +360,58 @@ class Tool(object):
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
         return self.z.item.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
+    def get_hostgroup_item(self, item, hostgroup):
+        '''Return all of the items of the given name within a hostgroup'''
+        hostgroup = self.get_hostgroup(hostgroup)[0][self._GROUPID]
+        return self.z.item.get({self._FILTER: {self._NAME: item},
+                                self._OUTPUT: self._EXTEND,
+                                self._GROUPIDS: [hostgroup,],
+                            })
+
     def get_items_with_template(self, item, template):
         '''Return matching items from hosts with the given template'''
         hosts = [x[self._HOSTID] for x in self.get_template_hosts(template)]
         return self.z.item.get({self._FILTER: {self._NAME: item}, self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
+
+    def mass_host_item_update(self, hostname):
+        '''NEVER USE THIS.'''
+        results = []
+        items = []
+        hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
+        for item in self.z.item.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND, 'templated':0}):
+            if not 'mysql' == item[self._KEY][:5]: continue
+            new_key = item[self._KEY].replace(' tables','').replace('[', '.').replace(']', '').lower().replace('mysql50', 'mysql').replace('mysql51', 'mysql').replace('mysql55', 'mysql').replace('mysql56', 'mysql').replace(' ','_').replace(',','_').replace('.setting.','.var.')
+            if new_key.count('.') < 2 and not new_key in [
+                    'mysql.auto_increment_max',
+                    'mysql.errors',
+                    'mysql.errors_error',
+                    'mysql.errors_error_warn',
+                    'mysql.errors_warn',
+            ]:
+                new_key = new_key.replace('mysql.','mysql.status.')
+            if item[self._KEY] != new_key:
+                try:
+                    results.append(
+                        self.z.item.update({self._ITEMID: item[self._ITEMID], self._KEY: new_key.lower()}))
+                except:
+                    results.append("duplicate key: " + new_key)
+        return results
+
+    def mass_rename_host_items(self, host, match_re, replacement):
+        '''Look up a host by name or ID number.  Rename all items that match the RE by substituting the replacement.'''
+        replacer = re.compile(match_re)
+        results = []
+        for item in self.get_items(host):
+            if item.has_key(self._NAME):
+                new_name = replacer.sub(replacement, item[self._NAME])
+                if new_name != item[self._NAME]:
+                    results.append(
+                        self.z.item.update({self._ITEMID: item[self._ITEMID], self._NAME: new_name}))
+            new_name = replacer.sub(replacement, item[self._DESCRIPTION])
+            if new_name != item[self._DESCRIPTION]:
+                results.append(self.z.item.update(
+                    {self._ITEMID: item[self._ITEMID], self._DESCRIPTION: new_name}))
+        return results
 
     def delete_items_with_template(self, item, template, doit=False):
         '''Delete matching items from hosts with the given template'''
