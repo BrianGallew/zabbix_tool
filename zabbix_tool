@@ -43,14 +43,11 @@ By default, %s will use the [zabbix] paragraph, but if you use the
 -s/--section option, you can tell %s to use a different section.
 ''' % (sys.argv[0], sys.argv[0], sys.argv[0])
 
-# {{{ class Tool
-
 
 class Tool(object):
 
     '''Zabbix API CLI tool.  All public functions should return a list
     which will be printed and summarized.'''
-    # {{{ commonly used words, interned for my pleasure
 
     _APPLICATIONID = 'applicationid'
     _APPLICATIONIDS = 'applicationids'
@@ -85,16 +82,12 @@ class Tool(object):
     _TRIGGERIDS = 'triggerids'
     _VALUE_TYPE = 'value_type'
 
-    # }}}
-
     def _start(self, url, username, password, timeout=60, loglevel=logging.ERROR, **kwargs):
         # Connect to Zabbix server
         self.z = zabbix_api.ZabbixAPI(server=url, timeout=timeout)
         self.z.set_log_level(loglevel)
         self.z.login(user=username, password=password)
         return
-
-    # {{{ print_hostgroup_cpu(self, hg):
 
     def print_hostgroup_cpu(self, hg):
         '''This mostly a demonstration function that will print the
@@ -140,9 +133,6 @@ class Tool(object):
             print "---------------------------"
         return []
 
-# }}}
-    # {{{ hostgroup functions
-
     def get_hostgroup(self, hg):
         '''Look up a hostgroup by name or ID number.  Returns a list with a single element'''
         try:
@@ -179,9 +169,6 @@ class Tool(object):
         print 'would have applied %s to the following %d hosts:' % (str(template), len(hostlist))
         return hostlist
 
-    # }}}
-    # {{{ host_* stuff
-
     def get_host(self, h):
         '''Look up a host by name or ID number.  Returns a list with a single element'''
         try:
@@ -189,7 +176,8 @@ class Tool(object):
             return self.z.host.get({self._HOSTIDS: h, self._OUTPUT: self._EXTEND})
         except:
             resultset = self.z.host.get({self._FILTER: {self._HOST: h}})
-            if resultset: return resultset
+            if resultset:
+                return resultset
             return self.z.host.get({self._FILTER: {self._NAME: h}})
 
     def get_host_applications(self, hostname):
@@ -275,9 +263,6 @@ class Tool(object):
         print host_list[0]
         return [x for x in host_list if x['proxy_hostid'] == u'0']
 
-    # }}}
-    # {{{ proxy stuff
-
     def get_proxy(self, p):
         '''Look up a proxy by name or ID number.  Returns a list with a single element'''
         try:
@@ -335,9 +320,6 @@ class Tool(object):
         # Now update the hosts from the CLI
         return results
 
-    # }}}
-    # {{{ item rules
-
     def get_item(self, i):
         '''Look up an item by name or ID number.  Returns a list'''
         try:
@@ -355,6 +337,24 @@ class Tool(object):
         except:
             return self.z.item.get({self._FILTER: {self._NAME: i}, self._HOSTIDS: hosts})
 
+    def get_item_history(self, i, limit=None):
+        '''Get the history of data associated with one or more items.
+        WARNING: if you pass in the name of an item, you'll probably crush the
+        database as it tries to retrieve the history of every item with that name.
+        '''
+        items = self.get_item(i)
+        params = {
+            'history': items[0]['value_type'],
+            self._ITEMIDS: [x[self._ITEMID] for x in items],
+            self._OUTPUT: self._EXTEND,
+            # Sort by timestamp from new to old
+            self._SORTFIELD: 'clock',
+            self._SORTORDER: 'DESC',
+        }
+        if limit:
+            params[self._LIMIT] = limit
+        return self.z.history.get(params)
+
     def get_host_items(self, hostname):
         '''Return all of the items for a single host.'''
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
@@ -365,8 +365,13 @@ class Tool(object):
         hostgroup = self.get_hostgroup(hostgroup)[0][self._GROUPID]
         return self.z.item.get({self._FILTER: {self._NAME: item},
                                 self._OUTPUT: self._EXTEND,
-                                self._GROUPIDS: [hostgroup,],
-                            })
+                                self._GROUPIDS: [hostgroup, ],
+                                })
+
+    def get_host_graphs(self, hostname):
+        '''Return all of the items for a single host.'''
+        hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
+        return self.z.graph.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
     def get_items_with_template(self, item, template):
         '''Return matching items from hosts with the given template'''
@@ -374,13 +379,19 @@ class Tool(object):
         return self.z.item.get({self._FILTER: {self._NAME: item}, self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND})
 
     def mass_host_item_update(self, hostname):
-        '''NEVER USE THIS.'''
+        '''Special-purpose function written specifically to transition from the
+        Mikoomi MySQL templates to a home-grown template without data loss.
+        This will rename the item keys from the Mikoomi standard to the new
+        one.  NEVER USE THIS.
+        '''
         results = []
         items = []
         hosts = [x[self._HOSTID] for x in self.get_host(hostname)]
-        for item in self.z.item.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND, 'templated':0}):
-            if not 'mysql' == item[self._KEY][:5]: continue
-            new_key = item[self._KEY].replace(' tables','').replace('[', '.').replace(']', '').lower().replace('mysql50', 'mysql').replace('mysql51', 'mysql').replace('mysql55', 'mysql').replace('mysql56', 'mysql').replace(' ','_').replace(',','_').replace('.setting.','.var.')
+        for item in self.z.item.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND, 'templated': 0}):
+            if not 'mysql' == item[self._KEY][:5]:
+                continue
+            new_key = item[self._KEY].replace(' tables', '').replace('[', '.').replace(']', '').lower().replace('mysql50', 'mysql').replace('mysql51', 'mysql').replace(
+                'mysql55', 'mysql').replace('mysql56', 'mysql').replace(' ', '_').replace(',', '_').replace('.setting.', '.var.').replace('mysql.status.state_', 'mysql.plist.state_')
             if new_key.count('.') < 2 and not new_key in [
                     'mysql.auto_increment_max',
                     'mysql.errors',
@@ -388,7 +399,7 @@ class Tool(object):
                     'mysql.errors_error_warn',
                     'mysql.errors_warn',
             ]:
-                new_key = new_key.replace('mysql.','mysql.status.')
+                new_key = new_key.replace('mysql.', 'mysql.status.')
             if item[self._KEY] != new_key:
                 try:
                     results.append(
@@ -460,9 +471,6 @@ class Tool(object):
         items = [x[self._ITEMID] for x in all]
         return self.z.host.get({self._ITEMIDS: items, self._OUTPUT: self._EXTEND})
 
-    # }}}
-    # {{{ template functions
-
     def get_template(self, t):
         '''Look up a template by name or ID number.  Returns a list with a single element'''
         try:
@@ -526,10 +534,12 @@ class Tool(object):
         :param filter_re: (optional) only update items with name/description matching this.
         '''
         results = []
-        if filter_re: filter_re = re.compile(filter_re)
+        if filter_re:
+            filter_re = re.compile(filter_re)
         for item in self.get_template_items(template):
             if filter_re:
-                if not filter_re.search(item.get(self._NAME, '')) and not filter_re.search(item.get(self._DESCRIPTION, '')): continue
+                if not filter_re.search(item.get(self._NAME, '')) and not filter_re.search(item.get(self._DESCRIPTION, '')):
+                    continue
             if item[attribute] == old_value:
                 results.append(
                     self.z.item.update({self._ITEMID: item[self._ITEMID], attribute: new_value}))
@@ -587,9 +597,6 @@ class Tool(object):
         kwargs[self._HOSTID] = h[self._HOSTID]
         return self.z.item.create(kwargs)
 
-    # }}}
-    # {{{ application functions
-
     def get_application(self, hg, limit=0):
         '''Look up an appliation by name or ID number.  Returns a list with a single element'''
         try:
@@ -619,9 +626,6 @@ class Tool(object):
             resultset.append(
                 self.delete_host_application(h[0][self._NAME], application, doit))
         return resultset
-
-    # }}}
-    # {{{ discovery rules
 
     def get_discovery_rule(self, hg, limit=0):
         '''Look up a discovery rule by name or ID number.  Returns a list.'''
@@ -660,9 +664,6 @@ class Tool(object):
             resultset.append(self.delete_discovery_rule(a[self._ITEMID], doit))
         return resultset
 
-    # }}}
-    # {{{ trigger functions
-
     def get_trigger(self, t):
         '''Look up a trigger by name or ID number.  Returns a list with a single element'''
         try:
@@ -696,8 +697,6 @@ class Tool(object):
         '''Search trigger descriptions for a given string.'''
         return self.z.trigger.get({self._SEARCH: {self._DESCRIPTION: term, self._SEARCHWILDCARDSENABLED: True}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
 
-    # }}}
-    # {{{ prototype functions
     def get_item_prototype(self, ip, limit=0):
         '''Look up an itemprototype.  Returns a list'''
         try:
@@ -713,8 +712,6 @@ class Tool(object):
             return self.z.triggerprototype.get({self._TRIGGERIDS: ip, self._OUTPUT: self._EXTEND})
         except:
             return self.z.triggerprototype.get({self._FILTER: {self._NAME: ip}, self._OUTPUT: self._EXTEND, self._LIMIT: limit})
-    # }}}
-    # {{{special_lld_in_template( template_name, key, lld_name):
 
     def special_lld_in_template(self, template_name, key, lld_name):
         '''Add a new LLD rule with the requisite, e.g. 
@@ -844,19 +841,11 @@ class Tool(object):
 
         return (lld, itemprototypes, triggerprototypes)
 
-    # }}}
-
-    # }}}
-# {{{ class MyParser
-
 
 class MyParser(OptionParser):
 
     def format_epilog(self, formatter):
         return self.epilog
-
-# }}}
-# {{{ main()
 
 if __name__ == '__main__':
     tool = Tool()      # Cheating!
@@ -914,5 +903,3 @@ if __name__ == '__main__':
         print '********* Results ********'
         pprint(results)
         print len(results)
-
-        # }}}
