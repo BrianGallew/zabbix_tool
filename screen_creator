@@ -12,14 +12,11 @@ searching, dragging, etc., get more than a little annoying after a while.
 https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py
 """
 
-def screenitem_error():
-    print "Please install https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py\nbefore trying to run this script."
-    exit()
-    
 try:
     import zabbix_api
 except:
-    screenitem_error()
+    print "Please install https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py\nbefore trying to run this script."
+    exit()
     
 import sys
 import os
@@ -28,6 +25,7 @@ import ConfigParser
 import argparse
 import operator
 import re
+from pprint import pprint
 
 CONFIG = 'config'
 LOGLEVEL = 'loglevel'
@@ -113,6 +111,8 @@ class Client(object):
         :returns: None
         '''
         logging.debug("ENTERED: Client.__init__")
+        self.options = options
+        self.template = None    # Placeholder for a template we may never use
         self.z = zabbix_api.ZabbixAPI(server=options.url, timeout=timeout)
         if not getattr(self.z, 'screenitem'):
             print dir(self.z)
@@ -127,28 +127,52 @@ class Client(object):
         :param identifier: the name or ID of a screen
         :returns: Zabbix screen object or empty dict'''
         logging.debug("ENTERED: Client.get_screen")
+        self.get_template()
         try:
             int(identifier)
-            result = self.z.screen.get({self._SCREENIDS: identifier,
-                                        self._OUTPUT: self._EXTEND})
+            if self.template:
+                result = self.z.templatescreen.get({self._SCREENIDS: identifier,
+                                                    self._TEMPLATEIDS: self.template[self._TEMPLATEID],
+                                                    self._OUTPUT: self._EXTEND})
+            else:
+                result = self.z.screen.get({self._SCREENIDS: identifier,
+                                            self._OUTPUT: self._EXTEND})
         except:
-            result = self.z.screen.get({self._FILTER: {self._NAME: identifier},
-                                        self._OUTPUT: self._EXTEND})
+            if self.template:
+                result = self.z.templatescreen.get({self._FILTER: {self._NAME: identifier},
+                                                    self._TEMPLATEIDS: self.template[self._TEMPLATEID],
+                                                    self._OUTPUT: self._EXTEND})
+            else:
+                result = self.z.screen.get({self._FILTER: {self._NAME: identifier},
+                                            self._OUTPUT: self._EXTEND})
         logging.debug("Client.get_screen result: %s", str(result))
-        return result and result[0] or {}
+        self.screen = result and result[0] or {}
+        return self.screen
+
+    def get_template(self):
+        '''Look up a template by name or ID number.  Returns a list with a single element'''
+        if self.template: return
+        try:
+            result = self.z.template.get({self._TEMPLATEIDS: int(self.options.template), self._OUTPUT: self._EXTEND})
+        except:
+            result = self.z.template.get({self._FILTER: {self._HOST: self.options.template}, self._OUTPUT: self._EXTEND})
+        if not result:
+            logging.fatal("Unable to find template %s", self.options.template)
+        self.template = result[0]
 
     def get_graph(self, identifier):
         '''Look up a graph.
         :param identifier: name or ID of a graph
         :returns: List of Zabbix graph objects or []'''
         logging.debug("ENTERED: Client.get_graph")
+        params = {self._OUTPUT: self._EXTEND}
+        if self.template:
+            params[self._TEMPLATEIDS] = self.template[self._TEMPLATEID]
         try:
-            int(identifier)
-            result = self.z.graph.get({self._GRAPHIDS: identifier,
-                                       self._OUTPUT: self._EXTEND})
+            params[self._GRAPHIDS] = int(identifier)
         except:
-            result = self.z.graph.get({self._FILTER: {self._NAME: identifier},
-                                       self._OUTPUT: self._EXTEND})
+            params[self._FILTER] = {self._NAME: identifier}
+        result = self.z.graph.get(params)
         logging.debug("Client.get_graph result: %s", str(result))
         return result or []
 
@@ -199,7 +223,7 @@ class Client(object):
             hosts.extend(x[self._HOSTS])
         return sorted(hosts, key=operator.itemgetter(self._HOST))
 
-    def create(self, options):
+    def create(self):
         """Creates a screen.
         :param name: The name of the new screen
         :param hsize: How many graphs wide the screen will be
@@ -207,54 +231,68 @@ class Client(object):
         :returns: screen (zabbix screen object)
         """
         logging.debug("ENTERED: Client.create")
-        result = self.z.screen.create({
-            self._NAME: options.screen,
-            self._HSIZE: options.hsize or 1,
-            self._VSIZE: options.vsize or 1
-        })
+        if self.template:
+            result = self.z.templatescreen.create({
+                self._TEMPLATEID: self.template[self._TEMPLATEID],
+                self._NAME: self.options.screen,
+                self._HSIZE: self.options.hsize or 1,
+                self._VSIZE: self.options.vsize or 1
+            })
+        else:
+            result = self.z.screen.create({
+                self._NAME: self.options.screen,
+                self._HSIZE: self.options.hsize or 1,
+                self._VSIZE: self.options.vsize or 1
+            })
         logging.debug("Client.create result: %s", str(result))
-        return result and self.get_screen(result[self._SCREENIDS][0]) or {}
+        if result: self.get_screen(result[self._SCREENIDS][0])
+        return self.screen
 
-    def update_screen_settings(self, screen, options):
+    def update_screen_settings(self):
         '''Check the options to see if the screen needs to be updated,
         then do so.
-        :param screen: Zabbix screen object
-        :param options: result of CLI parsing
         :returns: the (possibly updated) screen
         '''
         logging.debug("ENTERED: Client.update_screen_settings")
         params = {}
-        if options.rename and screen[self._NAME] != options.rename:
-            params[self._NAME] = options.rename
-        if options.hsize and screen[self._HSIZE] != options.hsize:
-            params[self._HSIZE] = options.hsize
-        if options.vsize and screen[self._VSIZE] != options.vsize:
-            params[self._VSIZE] = options.vsize
+        if self.options.rename and self.screen[self._NAME] != self.options.rename:
+            params[self._NAME] = self.options.rename
+        if self.options.hsize and self.screen[self._HSIZE] != self.options.hsize:
+            params[self._HSIZE] = self.options.hsize
+        if self.options.vsize and self.screen[self._VSIZE] != self.options.vsize:
+            params[self._VSIZE] = self.options.vsize
         if params:
-            params[self._SCREENID] = screen[self._SCREENID]
-            # This should probably check the return value
-            self.z.screen.update(params)
-            return self.get_screen(screen[self._SCREENID])
-        else:
-            return screen
+            params[self._SCREENID] = self.screen[self._SCREENID]
+            if self.template:
+                params[self._TEMPLATEID] = self.template[self._TEMPLATEID]
+                # This should probably check the return value
+                self.z.templatescreen.update(params)
+            else:
+                # This should probably check the return value
+                self.z.screen.update(params)
+            self.get_screen(self.screen[self._SCREENID])
+        return self.screen
 
-    def delete_screen(self, screen):
-        '''Deletes a screen.
-        :param screen: screen name or ID
+    def delete_screen(self):
+        '''Deletes a screen.  Exit when done.
         '''
         screen = self.get_screen(screen)
         if screen:
-            self.z.screen.delete([screen[self._SCREENID], ])
+            if self.template:
+                self.z.templatescreen.delete([self.screen[self._SCREENID], ])
+            else:
+                self.z.screen.delete([self.screen[self._SCREENID], ])
+        self.screen = None
+        self.template = None
         return
 
-    def add_screenitem(self, screenid, graphid, x, y, options):
+    def add_screenitem(self, screenid, graphid, x, y):
         '''Adds one graph to a screen, possibly explicitly setting the height or
         width of the graph.
         :param screenid: ID of the screen to be updated
         :param graphid: ID of the graph to be added
         :param x: horizontal position of the graph
         :param y: vertical position (from the top) of the graph
-        :param options: result of CLI parsing        
         '''
         params = {self._SCREENID: screenid,
                   self._RESOURCEID: graphid,
@@ -264,25 +302,23 @@ class Client(object):
                   'x': x,
                   'y': y}
         for param in [self._HEIGHT, self._WIDTH]:
-            value = getattr(options, param, None)
+            value = getattr(self.options, param, None)
             if value: params[param] = value
         self.z.screenitem.create(params)
         return
 
-    def add_graphs_to_screen(self, screen, graphs, options):
+    def add_graphs_to_screen(self, graphs):
         '''Add graphs directly to a screen object.
-        :param screen: Zabbix screen object
         :param graphs: list of Zabbix graph objects
-        :param options: result of CLI parsing
         :returns: None or an error message
         '''
         # Get the current screen configuration
-        existing_items = self.z.screenitem.get({self._SCREENIDS: screen[self._SCREENID],
+        existing_items = self.z.screenitem.get({self._SCREENIDS: self.screen[self._SCREENID],
                                                 self._OUTPUT: self._EXTEND})
 
         # Build a matrix to use for graph positioning
-        graph_matrix = [[None for x in xrange(int(screen[self._HSIZE]))]
-                        for x in xrange(int(screen[self._VSIZE]))]
+        graph_matrix = [[None for x in xrange(int(self.screen[self._HSIZE]))]
+                        for x in xrange(int(self.screen[self._VSIZE]))]
 
         # This lookup table is created so that we don't have to repeatedly
         # iterate over the list of graphs.
@@ -304,59 +340,74 @@ class Client(object):
                 if not graphs: break
                 if item: continue
                 value = graphs.pop(0)
-                self.add_screenitem(screen[self._SCREENID],
+                self.add_screenitem(self.screen[self._SCREENID],
                                     value[self._GRAPHID],
                                     x,
-                                    y,
-                                    options)
+                                    y)
                 graph_matrix[y][x] = value
         if not graphs: return   # We're all done!
         return '%d graphs were not added because the screen is too small (%s x %s)' % (len(graphs),
-                                                                                       screen[self._HSIZE],
-                                                                                       screen[self._VSIZE])
+                                                                                       self.screen[self._HSIZE],
+                                                                                       self.screen[self._VSIZE])
         
 
-    def add_all_host(self, screen, options):
-        '''Add all of the graphs associated with the given host to the given
-        screen.
-        :param screen: Zabbix screen object
-        :param options: result of CLI parsing
+    def add_all_template(self):
+        '''Add all of the graphs associated with the template to the screen.
         '''
-        if not options.add_all_host: # Check to see if we're adding host graphs
+        if not self.template:   # Check to see if we're using a template
+            return              # Bail if not
+
+        # Get the graph set for the host in question.
+        filter = re.compile(self.options.filter)
+        graphs = self.z.graph.get({self._TEMPLATEIDS: self.template[self._TEMPLATEID], self._OUTPUT: self._EXTEND})
+        graphs.sort(key=operator.itemgetter(self._NAME))
+        logging.info('add_all_host: Got %d graphs', len(graphs))
+        graphs = [x for x in graphs if filter.search(x[self._NAME])]
+        if not graphs: return 'All graphs filtered out'
+        
+        return self.add_graphs_to_screen(graphs)
+
+    def add_all_host(self):
+        '''Add all of the graphs associated with the host to the screen.
+        '''
+        if not self.options.add_all_host: # Check to see if we're adding host graphs
             return                   # Bail if not
+        if self.template:
+            loggin.warn("--add-all-host isn't valid with --template, ignoring it")
+            return
 
         # Get our host information
-        host = self.get_host(options.add_all_host)
+        host = self.get_host(self.options.add_all_host)
         if not host:
-            return 'Unable to find host %s' % options.add_all_host
+            return 'Unable to find host %s' % self.options.add_all_host
         logging.debug('add_all_host: hostid is %s', host[self._HOSTID])
 
         # Get the graph set for the host in question.
-        filter = re.compile(options.filter)
+        filter = re.compile(self.options.filter)
         graphs = self.z.graph.get({self._HOSTIDS: host[self._HOSTID], self._OUTPUT: self._EXTEND})
         graphs.sort(key=operator.itemgetter(self._NAME))
         logging.info('add_all_host: Got %d graphs', len(graphs))
         graphs = [x for x in graphs if filter.search(x[self._NAME])]
         if not graphs: return 'All graphs filtered out'
         
-        return self.add_graphs_to_screen(screen, graphs, options)
+        return self.add_graphs_to_screen(graphs, options)
 
-    def add_all_group(self, screen, options):
+    def add_all_group(self):
         '''Add all of the graphs associated with the given hostgroup to the given
         screen.
-        :param screen: Zabbix screen object
-        :param options: result of CLI parsing
         :returns: None or an error message
         '''
-        if not options.add_all_group: # Check to see if we're really doing this
+        if not self.options.add_all_group: # Check to see if we're really doing this
             return                   # Bail if not
-
+        if self.template:
+            loggin.warn("--add-all-group isn't valid with --template, ignoring it")
+            return
         # Get our host information
-        hostlist = self.get_hostgroup_hosts(options.add_all_group[0])
+        hostlist = self.get_hostgroup_hosts(self.options.add_all_group[0])
         if not hostlist:
-            return 'Unable to find hostgroup %s' % options.add_all_group[0]
+            return 'Unable to find hostgroup %s' % self.options.add_all_group[0]
 
-        filter = re.compile(options.filter)
+        filter = re.compile(self.options.filter)
 
         hostlist = [x[self._HOSTID] for x in hostlist if filter.search(x[self._NAME]) or filter.search(x[self._HOST])]
         if not hostlist: return 'All hosts filtered out'
@@ -364,7 +415,7 @@ class Client(object):
         
         # Get the graph set for the hosts in question.
         graphs = self.z.graph.get({self._HOSTIDS: hostlist, self._OUTPUT: self._EXTEND,
-                                   self._FILTER: {self._NAME: options.add_all_group[1]}})
+                                   self._FILTER: {self._NAME: self.options.add_all_group[1]}})
         logging.info('add_all_group: Got %d graphs', len(graphs))
 
         # This oddity is to sort the graphs, because we'd *like* the graphs
@@ -376,7 +427,7 @@ class Client(object):
             sorted_graphs.extend([x for x in graphs if x[self._HOSTS][0][self._HOSTID] == hostid])
         logging.debug('add_all_group: Sorted into %d graphs', len(sorted_graphs))
         
-        return self.add_graphs_to_screen(screen, sorted_graphs, options)
+        return self.add_graphs_to_screen(sorted_graphs)
 
 def parse_command_line():
     '''Handle command-line options
@@ -410,6 +461,8 @@ def parse_command_line():
     parser.add_argument("--filter", default='.*',
                         help="REGEX filter graph names for hosts, host names for hostgroups.")
     parser.add_argument("--rename", help="Change the name of the screen")
+    parser.add_argument("-t", "--template", default=None,
+                        help="Working with the give template")
     parser.add_argument("screen", help="The screen")
 
     options = parser.parse_args()
@@ -441,20 +494,20 @@ def main():
     
     # If we're deleting the screen, don't do anything else!
     if options.delete:
-        return tool.delete_screen(options.screen)
+        tool.delete_screen()
+        exit()
+
     screen = tool.get_screen(options.screen)
+
     if not screen:
-        screen = tool.create(options)
+        screen = tool.create()
     else:
-        screen = tool.update_screen_settings(screen, options)
-    result = tool.add_all_host(screen, options)
-    if result:
-        logging.fatal(result)
-        exit(1)
-    result = tool.add_all_group(screen, options)
-    if result:
-        logging.fatal(result)
-        exit(1)
+        screen = tool.update_screen_settings()
+    for fn in [tool.add_all_host, tool.add_all_group, tool.add_all_template]:
+        result = fn()
+        if result:
+            logging.fatal(result)
+            exit(1)
     print screen
     return
 

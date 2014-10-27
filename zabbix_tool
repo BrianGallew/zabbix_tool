@@ -594,7 +594,7 @@ class Tool(object):
                 kwargs[key] = int(value)
             except:
                 kwargs[key] = value
-        kwargs[self._HOSTID] = h[self._HOSTID]
+        kwargs[self._HOSTID] = h[self._TEMPLATEID]
         return self.z.item.create(kwargs)
 
     def get_application(self, hg, limit=0):
