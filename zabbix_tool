@@ -175,10 +175,10 @@ class Tool(object):
             int(h)
             return self.z.host.get({self._HOSTIDS: h, self._OUTPUT: self._EXTEND})
         except:
-            resultset = self.z.host.get({self._FILTER: {self._HOST: h}})
+            resultset = self.z.host.get({self._FILTER: {self._HOST: h}, self._OUTPUT: self._EXTEND})
             if resultset:
                 return resultset
-            return self.z.host.get({self._FILTER: {self._NAME: h}})
+            return self.z.host.get({self._FILTER: {self._NAME: h}, self._OUTPUT: self._EXTEND})
 
     def get_host_applications(self, hostname):
         '''List all of the applications represented on the given host.'''

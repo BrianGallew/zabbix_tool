@@ -152,6 +152,7 @@ class Client(object):
     def get_template(self):
         '''Look up a template by name or ID number.  Returns a list with a single element'''
         if self.template: return
+        if not self.options.template: return
         try:
             result = self.z.template.get({self._TEMPLATEIDS: int(self.options.template), self._OUTPUT: self._EXTEND})
         except:
@@ -276,7 +277,7 @@ class Client(object):
     def delete_screen(self):
         '''Deletes a screen.  Exit when done.
         '''
-        screen = self.get_screen(screen)
+        screen = self.get_screen(self.options.screen)
         if screen:
             if self.template:
                 self.z.templatescreen.delete([self.screen[self._SCREENID], ])
