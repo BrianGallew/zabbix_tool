@@ -391,7 +391,7 @@ class Client(object):
         graphs = [x for x in graphs if filter.search(x[self._NAME])]
         if not graphs: return 'All graphs filtered out'
         
-        return self.add_graphs_to_screen(graphs, options)
+        return self.add_graphs_to_screen(graphs)
 
     def add_all_group(self):
         '''Add all of the graphs associated with the given hostgroup to the given
