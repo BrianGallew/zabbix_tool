@@ -17,7 +17,7 @@ try:
 except:
     print "Please install https://github.com/gescheit/scripts/blob/master/zabbix/zabbix_api.py\nbefore trying to run this script."
     exit()
-    
+
 import sys
 import os
 import logging
@@ -120,6 +120,11 @@ class Client(object):
 
         self.z.set_log_level(logging.root.level)
         self.z.login(user=options.username, password=options.password)
+        api_version = self.z.api_version()
+        if self._RESULT in api_version:
+            self.api_version = api_version[self._RESULT]
+        else:
+            self.api_version = ''  # old/busted
         return
 
     def get_screen(self, identifier):
@@ -151,12 +156,16 @@ class Client(object):
 
     def get_template(self):
         '''Look up a template by name or ID number.  Returns a list with a single element'''
-        if self.template: return
-        if not self.options.template: return
+        if self.template:
+            return
+        if not self.options.template:
+            return
         try:
-            result = self.z.template.get({self._TEMPLATEIDS: int(self.options.template), self._OUTPUT: self._EXTEND})
+            result = self.z.template.get(
+                {self._TEMPLATEIDS: int(self.options.template), self._OUTPUT: self._EXTEND})
         except:
-            result = self.z.template.get({self._FILTER: {self._HOST: self.options.template}, self._OUTPUT: self._EXTEND})
+            result = self.z.template.get(
+                {self._FILTER: {self._HOST: self.options.template}, self._OUTPUT: self._EXTEND})
         if not result:
             logging.fatal("Unable to find template %s", self.options.template)
         self.template = result[0]
@@ -222,6 +231,7 @@ class Client(object):
                                        self._SELECTHOSTS: self._EXTEND
                                        }):
             hosts.extend(x[self._HOSTS])
+        logging.debug("Client.get_hostgroup_hosts: %s", str(hosts))
         return sorted(hosts, key=operator.itemgetter(self._HOST))
 
     def create(self):
@@ -246,7 +256,8 @@ class Client(object):
                 self._VSIZE: self.options.vsize or 1
             })
         logging.debug("Client.create result: %s", str(result))
-        if result: self.get_screen(result[self._SCREENIDS][0])
+        if result:
+            self.get_screen(result[self._SCREENIDS][0])
         return self.screen
 
     def update_screen_settings(self):
@@ -298,13 +309,16 @@ class Client(object):
         params = {self._SCREENID: screenid,
                   self._RESOURCEID: graphid,
                   'resourcetype': 0,
-                  'rowspan': 0,
-                  'colspan': 0,
                   'x': x,
                   'y': y}
+        # These vanished with the advent of 2.4
+        if self.api_version > '2.3.99':
+            params['rowspan'] = 0
+            params['colspan'] = 0
         for param in [self._HEIGHT, self._WIDTH]:
             value = getattr(self.options, param, None)
-            if value: params[param] = value
+            if value:
+                params[param] = value
         self.z.screenitem.create(params)
         return
 
@@ -324,33 +338,38 @@ class Client(object):
         # This lookup table is created so that we don't have to repeatedly
         # iterate over the list of graphs.
         lookup_table = {}
-        for graph in graphs: lookup_table[graph[self._GRAPHID]] = graph
-            
+        for graph in graphs:
+            lookup_table[graph[self._GRAPHID]] = graph
+
         # Add each item from the existing item set into the matrix.  While
         # we're at it, ensure we remove them all from the set of graphs to
         # be added (no duplicates!).
         for item in existing_items:
             graph_matrix[int(item['y'])][int(item['x'])] = item
             if item[self._RESOURCEID] in lookup_table:
-                logging.info('add_graphs_to_screen: Removing existing item from add list: %s', item[self._RESOURCEID])
+                logging.info('add_graphs_to_screen: Removing existing item from add list: %s', item[
+                             self._RESOURCEID])
                 graphs.remove(lookup_table[item[self._RESOURCEID]])
 
         # Iterate through the matrix looking for empty graph locations.
         for y, row in enumerate(graph_matrix):
             for x, item in enumerate(row):
-                if not graphs: break
-                if item: continue
+                if not graphs:
+                    break
+                if item:
+                    continue
                 value = graphs.pop(0)
                 self.add_screenitem(self.screen[self._SCREENID],
                                     value[self._GRAPHID],
                                     x,
                                     y)
                 graph_matrix[y][x] = value
-        if not graphs: return   # We're all done!
+        if not graphs:
+            return   # We're all done!
         return '%d graphs were not added because the screen is too small (%s x %s)' % (len(graphs),
-                                                                                       self.screen[self._HSIZE],
+                                                                                       self.screen[
+                                                                                           self._HSIZE],
                                                                                        self.screen[self._VSIZE])
-        
 
     def add_all_template(self):
         '''Add all of the graphs associated with the template to the screen.
@@ -360,21 +379,24 @@ class Client(object):
 
         # Get the graph set for the host in question.
         filter = re.compile(self.options.filter)
-        graphs = self.z.graph.get({self._TEMPLATEIDS: self.template[self._TEMPLATEID], self._OUTPUT: self._EXTEND})
+        graphs = self.z.graph.get(
+            {self._TEMPLATEIDS: self.template[self._TEMPLATEID], self._OUTPUT: self._EXTEND})
         graphs.sort(key=operator.itemgetter(self._NAME))
         logging.info('add_all_host: Got %d graphs', len(graphs))
         graphs = [x for x in graphs if filter.search(x[self._NAME])]
-        if not graphs: return 'All graphs filtered out'
-        
+        if not graphs:
+            return 'All graphs filtered out'
+
         return self.add_graphs_to_screen(graphs)
 
     def add_all_host(self):
         '''Add all of the graphs associated with the host to the screen.
         '''
-        if not self.options.add_all_host: # Check to see if we're adding host graphs
+        if not self.options.add_all_host:  # Check to see if we're adding host graphs
             return                   # Bail if not
         if self.template:
-            loggin.warn("--add-all-host isn't valid with --template, ignoring it")
+            loggin.warn(
+                "--add-all-host isn't valid with --template, ignoring it")
             return
 
         # Get our host information
@@ -385,12 +407,14 @@ class Client(object):
 
         # Get the graph set for the host in question.
         filter = re.compile(self.options.filter)
-        graphs = self.z.graph.get({self._HOSTIDS: host[self._HOSTID], self._OUTPUT: self._EXTEND})
+        graphs = self.z.graph.get(
+            {self._HOSTIDS: host[self._HOSTID], self._OUTPUT: self._EXTEND})
         graphs.sort(key=operator.itemgetter(self._NAME))
         logging.info('add_all_host: Got %d graphs', len(graphs))
         graphs = [x for x in graphs if filter.search(x[self._NAME])]
-        if not graphs: return 'All graphs filtered out'
-        
+        if not graphs:
+            return 'All graphs filtered out'
+
         return self.add_graphs_to_screen(graphs, options)
 
     def add_all_group(self):
@@ -398,10 +422,11 @@ class Client(object):
         screen.
         :returns: None or an error message
         '''
-        if not self.options.add_all_group: # Check to see if we're really doing this
+        if not self.options.add_all_group:  # Check to see if we're really doing this
             return                   # Bail if not
         if self.template:
-            loggin.warn("--add-all-group isn't valid with --template, ignoring it")
+            loggin.warn(
+                "--add-all-group isn't valid with --template, ignoring it")
             return
         # Get our host information
         hostlist = self.get_hostgroup_hosts(self.options.add_all_group[0])
@@ -410,14 +435,20 @@ class Client(object):
 
         filter = re.compile(self.options.filter)
 
-        hostlist = [x[self._HOSTID] for x in hostlist if filter.search(x[self._NAME]) or filter.search(x[self._HOST])]
-        if not hostlist: return 'All hosts filtered out'
+        hostlist = [x[self._HOSTID] for x in hostlist if filter.search(
+            x[self._NAME]) or filter.search(x[self._HOST])]
+        if not hostlist:
+            return 'All hosts filtered out'
         logging.debug('add_all_group: hosts are %s', str(hostlist))
-        
+
         # Get the graph set for the hosts in question.
         graphs = self.z.graph.get({self._HOSTIDS: hostlist, self._OUTPUT: self._EXTEND,
+                                   self._SELECTHOSTS: self._EXTEND,
+                                   # 1.8 support, "yay"
+                                   'select_hosts': self._EXTEND,
                                    self._FILTER: {self._NAME: self.options.add_all_group[1]}})
         logging.info('add_all_group: Got %d graphs', len(graphs))
+        logging.debug('add_all_group: graphs: %s', str(graphs))
 
         # This oddity is to sort the graphs, because we'd *like* the graphs
         # to be ordered by hostname.  Of course, if there are "holes" in
@@ -425,10 +456,13 @@ class Client(object):
         # different problem.
         sorted_graphs = []
         for hostid in hostlist:
-            sorted_graphs.extend([x for x in graphs if x[self._HOSTS][0][self._HOSTID] == hostid])
-        logging.debug('add_all_group: Sorted into %d graphs', len(sorted_graphs))
-        
+            sorted_graphs.extend(
+                [x for x in graphs if x[self._HOSTS][0][self._HOSTID] == hostid])
+        logging.debug(
+            'add_all_group: Sorted into %d graphs', len(sorted_graphs))
+
         return self.add_graphs_to_screen(sorted_graphs)
+
 
 def parse_command_line():
     '''Handle command-line options
@@ -492,7 +526,7 @@ def parse_command_line():
 def main():
     '''Program entry point'''
     options, tool = parse_command_line()
-    
+
     # If we're deleting the screen, don't do anything else!
     if options.delete:
         tool.delete_screen()
