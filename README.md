@@ -23,6 +23,7 @@ Python Cheese Shop, but it's stale.
 Each of the above tools expects you to have a config file called ~/.zabbix
 
 The Config file should look like this:
+```
 -------------- CUT HERE -----------------
 [zabbix]
 username='zabbix-api-user'
@@ -34,6 +35,7 @@ username='zabbix-dev-api-user'
 password='not-mine-either'
 url='https://zabbix-dev.example.com/'
 -------------- CUT HERE -----------------
+```
 
 The "zabbix" section is the default used by the scripts, though you can
 specify the section to use on the command line.

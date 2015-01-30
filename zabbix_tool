@@ -172,13 +172,12 @@ class Tool(object):
     def get_host(self, h):
         '''Look up a host by name or ID number.  Returns a list with a single element'''
         try:
-            int(h)
-            return self.z.host.get({self._HOSTIDS: h, self._OUTPUT: self._EXTEND})
+            return self.z.host.get({self._HOSTIDS: int(h), self._OUTPUT: self._EXTEND})
         except:
-            resultset = self.z.host.get({self._FILTER: {self._HOST: h}, self._OUTPUT: self._EXTEND})
+            resultset = self.z.host.get({self._SEARCH: {self._HOST: h}, self._OUTPUT: self._EXTEND})
             if resultset:
                 return resultset
-            return self.z.host.get({self._FILTER: {self._NAME: h}, self._OUTPUT: self._EXTEND})
+            return self.z.host.get({self._SEARCH: {self._NAME: h}, self._OUTPUT: self._EXTEND})
 
     def get_host_applications(self, hostname):
         '''List all of the applications represented on the given host.'''
