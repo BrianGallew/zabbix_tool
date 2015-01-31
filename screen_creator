@@ -120,7 +120,10 @@ class Client(object):
 
         self.z.set_log_level(logging.root.level)
         self.z.login(user=options.username, password=options.password)
-        api_version = self.z.api_version()
+        try:
+            api_version = self.z.api_version()
+        except:
+            api_version = {}
         if self._RESULT in api_version:
             self.api_version = api_version[self._RESULT]
         else:
