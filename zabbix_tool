@@ -174,7 +174,8 @@ class Tool(object):
         try:
             return self.z.host.get({self._HOSTIDS: int(h), self._OUTPUT: self._EXTEND})
         except:
-            resultset = self.z.host.get({self._SEARCH: {self._HOST: h}, self._OUTPUT: self._EXTEND})
+            resultset = self.z.host.get(
+                {self._SEARCH: {self._HOST: h}, self._OUTPUT: self._EXTEND})
             if resultset:
                 return resultset
             return self.z.host.get({self._SEARCH: {self._NAME: h}, self._OUTPUT: self._EXTEND})
@@ -667,7 +668,7 @@ class Tool(object):
         '''Look up a trigger by name or ID number.  Returns a list with a single element'''
         try:
             int(t)
-            return self.z.trigger.get({self._TRIGGERIDS: t, self._OUTPUT: self._EXTEND})
+            return self.z.trigger.get({self._TRIGGERIDS: t, self._OUTPUT: self._EXTEND, 'expandData': 1})
         except:
             return self.z.trigger.get({self._FILTER: {self._NAME: t}, self._OUTPUT: self._EXTEND})
 
