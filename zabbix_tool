@@ -141,6 +141,10 @@ class Tool(object):
         except:
             return self.z.hostgroup.get({self._FILTER: {self._NAME: hg}})
 
+    def get_hostgroups(self, match_name=''):
+        '''List all hostgroups, filtering via the (optional) parameter'''
+        return self.z.hostgroup.get({self._SEARCH: {self._NAME: match_name}, self._OUTPUT: self._EXTEND})
+
     def get_hostgroup_hosts(self, hg):
         '''Look up all of the hosts which belong to a given hostgroup.'''
         hg = [x[self._GROUPID] for x in self.get_hostgroup(hg)]
