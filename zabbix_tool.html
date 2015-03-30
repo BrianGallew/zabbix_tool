@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <title>zabbix_tool</title>
+  </head>
+
+  <body>
+
+    <header>
+      <div class="container">
+        <h1>Zabbix tool</h1>
+	<p>The Zabbix UI is pretty spiffy, but web sites are difficult to interact with in an automated manner.  Being able to pull up a list of hosts, or triggers, or various other information can make for power tools that will enhance your ability to react to triggers, update configuration, and otherwise get work done.<p>
+      </div>
+    </header>
+
+    <div class="container">
+      <section id="main_content">
+
+<pre><code>Usage: zabbix_tool [options]
+
+Options:
+  -h, --help            show this help message and exit
+  -c CONFIG, --config=CONFIG
+                        CONFIG file
+  -s SECTION, --section=SECTION
+                        Section of config file to use file
+  -l LOGLEVEL, --loglevel=LOGLEVEL
+                        Set logging level (0-50), defaults to 40 (only errors)
+  --filter=FILTER       Only print the named field of the returned items
+
+
+class Tool(__builtin__.object)
+ |  Zabbix API CLI tool.  All public functions should return a list
+ |  which will be printed and summarized.
+ |
+ |  Methods defined here:
+ |
+ |  add_item_to_template(self, h, *args)
+ |      Create a new item.  Takes a template and dictionary of values.
+ |
+ |  apply_template_to_hostgroup_members(self, template, hostgroup, doit=False)
+ |      Given a template and a hostgroup, the template will be added to
+ |      each host within the hostgroup, assuming a third parameter (which
+ |      defaults to False) is set to some true value.  Otherwise, it will
+ |      simply tell you what it *would* have done.
+ |
+ |  assign_proxy_hosts(self, proxyname, *args)
+ |      Assign hosts to a proxy.  Takes the name of a proxy (e.g. YVR01)
+ |      and a list of hostnames.
+ |
+ |  delete_application_from_hosts(self, application, limit=1, doit=False)
+ |      Delete an application from some number of hosts, limited to one
+ |      by default, and also limited to dry-run by default.
+ |
+ |  delete_discovery_rule(self, hg, doit=False)
+ |      Delete a discovery rule from all hosts/templates.  Defaults to dry-run only.
+ |
+ |  delete_discovery_rule_hosts(self, hg, limit=1, doit=False)
+ |      Deletes the indicated discovery rule from hosts, leaving the template untouched.
+ |
+ |  delete_host_application(self, hostname, application, doit=False)
+ |      Given a hostname and an application name, delete all the
+ |      triggers and items which match both if the final parameter is True
+ |      (defaults to False).
+ |
+ |  delete_host_application_items(self, hostname, application, doit=False)
+ |      Given a hostname and an application name, delete all the items
+ |      which match both if the final parameter is True (defaults to
+ |      False).
+ |
+ |  delete_host_application_triggers(self, hostname, application, doit=False)
+ |      Given a hostname and an application name, delete all the triggers
+ |      which match both if the final parameter is True (defaults to
+ |      False).
+ |
+ |  delete_host_item(self, hostname, item, doit=False)
+ |      From a given host, Delete the item or items that matched the passed in value (ID or name).
+ |
+ |  delete_items(self, item, doit=False)
+ |      Delete the item or items that match the passed in value (ID or name).
+ |
+ |  delete_items_with_template(self, item, template, doit=False)
+ |      Delete matching items from hosts with the given template
+ |
+ |  delete_trigger(self, trigger, doit=False)
+ |      Delete the given trigger.  Defaults to dry-run only.
+ |
+ |  find_trigger(self, term, limit=10)
+ |      Search trigger descriptions for a given string.
+ |
+ |  get_application(self, hg, limit=0)
+ |      Look up an appliation by name or ID number.  Returns a list with a single element
+ |
+ |  get_application_items(self, app, limit=10)
+ |      Look up all the items which are part of the given application, limit 10 by default.
+ |
+ |  get_discovery_rule(self, hg, limit=0)
+ |      Look up a discovery rule by name or ID number.  Returns a list.
+ |
+ |  get_host(self, h)
+ |      Look up a host by name or ID number.  Returns a list with a single element
+ |
+ |  get_host_application_items(self, hostname, application)
+ |      Given a hostname and an application name, return the list if
+ |      items which match both.
+ |
+ |  get_host_application_triggers(self, hostname, application)
+ |      Given a hostname and an application name, return the list if
+ |      triggers which match both.
+ |
+ |  get_host_applications(self, hostname)
+ |      List all of the applications represented on the given host.
+ |
+ |  get_host_discovery_rule(self, hostname, discoveryrule)
+ |      Get the actual discovery rule objects associated with a hostname
+ |      and discovery rule name.
+ |
+ |  get_host_graphs(self, hostname)
+ |      Return all of the items for a single host.
+ |
+ |  get_host_items(self, hostname)
+ |      Return all of the items for a single host.
+ |
+ |  get_host_with_template_and_no_proxy(self, template)
+ |      Return a list of hosts with the given template and proxy ID.
+ |
+ |  get_hostgroup(self, hg)
+ |      Look up a hostgroup by name or ID number.  Returns a list with a single element
+ |
+ |  get_hostgroup_hosts(self, hg)
+ |      Look up all of the hosts which belong to a given hostgroup.
+ |
+ |  get_hostgroup_item(self, item, hostgroup)
+ |      Return all of the items of the given name within a hostgroup
+ |
+ |  get_hostgroups(self, match_name='')
+ |      List all hostgroups, filtering via the (optional) parameter
+ |
+ |  get_hosts_assigned_to_proxy(self, proxyname)
+ |      List hosts assigned to a proxy.  Takes the name of a proxy (e.g. YVR01).
+ |
+ |  get_item(self, i)
+ |      Look up an item by name or ID number.  Returns a list
+ |
+ |  get_item_history(self, i, limit=None)
+ |      Get the history of data associated with one or more items.
+ |      WARNING: if you pass in the name of an item, you'll probably crush the
+ |      database as it tries to retrieve the history of every item with that name.
+ |
+ |  get_item_host(self, i, h)
+ |      Look up an item by name or ID number for a given host.  Returns a list with a single element
+ |
+ |  get_item_prototype(self, ip, limit=0)
+ |      Look up an itemprototype.  Returns a list
+ |
+ |  get_items_with_template(self, item, template)
+ |      Return matching items from hosts with the given template
+ |
+ |  get_proxy(self, p)
+ |      Look up a proxy by name or ID number.  Returns a list with a single element
+ |
+ |  get_proxy_interfaces(self, p)
+ |      Look up a proxy by name or ID number.  Returns a list with a single element
+ |
+ |  get_template(self, t)
+ |      Look up a template by name or ID number.  Returns a list with a single element
+ |
+ |  get_template_hosts(self, t)
+ |      Look up all the hosts that use the given template.
+ |
+ |  get_template_items(self, template)
+ |      Look up a template by name or ID number.  Returns a list of items belonging to that template (including linked items)
+ |
+ |  get_template_triggers_without_urls(self, group)
+ |      Lists Triggers with an empty URL field.  Pass in the name or ID of a Templates hostgroup
+ |
+ |  get_trigger(self, t)
+ |      Look up a trigger by name or ID number.  Returns a list with a single element
+ |
+ |  get_trigger_hosts(self, trigger)
+ |      List all the hosts with the given trigger.
+ |
+ |  get_trigger_prototype(self, ip, limit=0)
+ |      Look up a triggerprototype.  Returns a list
+ |
+ |  get_unsupported_item_hosts(self, item)
+ |      One-off function for looking for a particular item.  Do not use.
+ |
+ |  link_template_parent_to_child(self, parent, child)
+ |      Makes the child template a linked template of the parent template.
+ |
+ |  link_template_to_host(self, template, host)
+ |      Link the given template to the given host.  Takes names or IDs.
+ |
+ |  mass_host_item_update(self, hostname)
+ |      Special-purpose function written specifically to transition from the
+ |      Mikoomi MySQL templates to a home-grown template without data loss.
+ |      This will rename the item keys from the Mikoomi standard to the new
+ |      one.  NEVER USE THIS.
+ |
+ |  mass_rename_host_items(self, host, match_re, replacement)
+ |      Look up a host by name or ID number.  Rename all items that match the RE by substituting the replacement.
+ |
+ |  mass_rename_template_item_keys(self, template, match_re, replacement)
+ |      Look up a template by name or ID number.  Change all the keys that match the RE by substituting the replacement.
+ |
+ |  mass_rename_template_items(self, template, match_re, replacement)
+ |      Look up a template by name or ID number.  Rename all items that match the RE by substituting the replacement.
+ |
+ |  mass_template_item_replace_attribute(self, template, attribute, old_value, new_value, filter_re=None)
+ |      USING THIS CAN DESTROY YOUR TEMPLATE.
+ |
+ |      Change ATTRIBUTE on all (or filtered) items from OLD_VALUE to NEW_VALUE.
+ |      :param template: template to update (name or id)
+ |      :param attribute: attribute of each item to update
+ |      :param old_value: current value of the attribute (for limiting purposes)
+ |      :param new_value: new value of the attribute
+ |      :param filter_re: (optional) only update items with name/description matching this.
+ |
+ |  mass_template_item_update(self, template, match_re)
+ |      NEVER USE THIS.
+ |
+ |  print_hostgroup_cpu(self, hg)
+ |      This mostly a demonstration function that will print the
+ |      5-minute load average for all of the hosts in a single
+ |      hostgroup.
+ |
+ |  special_lld_in_template(self, template_name, key, lld_name)
+ |      Add a new LLD rule with the requisite, e.g.
+ |
+ |      zabbix_tool special_lld_in_template test-template-discovery-geek bletchley 'Discovery - Unlikely Mountpoints'
+ |
+ |      (with the current code) will create a discovery rule in
+ |      test-template-discovery-geek that will use BLETCHLEY as the
+ |      differentiator in the key, with 8 items and 4 triggers.  Assuming,
+ |      of course, that it all completes successfully.  There is a great
+ |      deal of contention on the `ids` table in pre-2.2.
+ |      :param template_name: Name of the template to be modified
+ |      :param key: unique value used to differentiate this LLD from others
+ |      :param lld_name: Name for the LLD to be added
+ |      :returns: (lld object, itemprototypes object list, triggerprototypes object list)
+ |
+ |  switch_proxy(self, source, dest)
+ |      Move all hosts currently assigned to proxy1 over to proxy2..
+ |      Takes the name of a source proxy and destination proxy (e.g. YVR01
+ |      YVR02).
+ |</code></pre>
+
+      </section>
+    </div>
+
+    
+  </body>
+</html>
