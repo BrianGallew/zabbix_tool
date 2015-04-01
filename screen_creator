@@ -334,9 +334,16 @@ class Client(object):
         existing_items = self.z.screenitem.get({self._SCREENIDS: self.screen[self._SCREENID],
                                                 self._OUTPUT: self._EXTEND})
 
-        # Build a matrix to use for graph positioning
-        graph_matrix = [[None for x in xrange(int(self.screen[self._HSIZE]))]
-                        for x in xrange(int(self.screen[self._VSIZE]))]
+        # Create a list of all valid coordinates in the graph, sorted for a
+        # HORIZONTAL layout, because switching to VERTICAL is then really
+        # easy.
+        graph_matrix = []
+        for y in xrange(int(self.screen[self._VSIZE])):
+            for x in xrange(int(self.screen[self._HSIZE])):
+                graph_matrix.append((x, y))
+        # sort for VERTICAL if the user wants it.
+        if self.options.vertical:
+            graph_matrix.sort()
 
         # This lookup table is created so that we don't have to repeatedly
         # iterate over the list of graphs.
@@ -348,25 +355,21 @@ class Client(object):
         # we're at it, ensure we remove them all from the set of graphs to
         # be added (no duplicates!).
         for item in existing_items:
-            graph_matrix[int(item['y'])][int(item['x'])] = item
+            graph_matrix.remove((int(item['x']), int(item['y'])))
             if item[self._RESOURCEID] in lookup_table:
                 logging.info('add_graphs_to_screen: Removing existing item from add list: %s', item[
                              self._RESOURCEID])
                 graphs.remove(lookup_table[item[self._RESOURCEID]])
 
         # Iterate through the matrix looking for empty graph locations.
-        for y, row in enumerate(graph_matrix):
-            for x, item in enumerate(row):
-                if not graphs:
-                    break
-                if item:
-                    continue
-                value = graphs.pop(0)
-                self.add_screenitem(self.screen[self._SCREENID],
-                                    value[self._GRAPHID],
-                                    x,
-                                    y)
-                graph_matrix[y][x] = value
+        for (x, y) in graph_matrix:
+            if not graphs:
+                break
+            value = graphs.pop(0)
+            self.add_screenitem(self.screen[self._SCREENID],
+                                value[self._GRAPHID],
+                                x,
+                                y)
         if not graphs:
             return   # We're all done!
         return '%d graphs were not added because the screen is too small (%s x %s)' % (len(graphs),
@@ -494,6 +497,8 @@ def parse_command_line():
                         help="Set the height of the screen (in graph objects)")
     parser.add_argument("--height", default=0, type=int,
                         help="The height of all graphs to be added")
+    parser.add_argument("--vertical", default=False, action='store_true',
+                        help="Add graphs to screen by columns")
     parser.add_argument("--width", default=0, type=int,
                         help="The width of all graphs to be added")
     parser.add_argument("--filter", default='.*',
