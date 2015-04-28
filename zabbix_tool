@@ -857,12 +857,12 @@ def parse_config_file(option_set):
     except Exception, e:
         raise Exception('Unable to parse the configuration file(%s): %s\n\n' %
                         (option_set[CONFIG], e))
-    if not options[SECTION] in config.sections():
+    if not option_set[SECTION] in config.sections():
         raise SystemExit(
-            'No [%s] section in the configuration file' % options[SECTION])
+            'No [%s] section in the configuration file' % option_set[SECTION])
 
-    for (option_key, option_value) in config.items(options[SECTION], 1):
-        options[option_key] = option_value.strip('"').strip("'")
+    for (option_key, option_value) in config.items(option_set[SECTION], 1):
+        option_set[option_key] = option_value.strip('"').strip("'")
 
 if __name__ == '__main__':
     tool = Tool()
