@@ -847,6 +847,23 @@ class MyParser(OptionParser):
     def format_epilog(self, formatter):
         return self.epilog
 
+
+def parse_config_file(option_set):
+    '''Parse the config file out here.
+    '''
+    config = ConfigParser.ConfigParser()
+    try:
+        config.read(option_set[CONFIG])
+    except Exception, e:
+        raise Exception('Unable to parse the configuration file(%s): %s\n\n' %
+                        (option_set[CONFIG], e))
+    if not options[SECTION] in config.sections():
+        raise SystemExit(
+            'No [%s] section in the configuration file' % options[SECTION])
+
+    for (option_key, option_value) in config.items(options[SECTION], 1):
+        options[option_key] = option_value.strip('"').strip("'")
+
 if __name__ == '__main__':
     tool = Tool()
     # Handle command-line options
@@ -864,20 +881,7 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
     options = vars(options)
-
-    config = ConfigParser.ConfigParser()
-    try:
-        config.readfp(open(options[CONFIG]))
-    except Exception, e:
-        print('Unable to parse the configuration file(%s): %s\n\n' %
-              (options.config, e))
-        raise
-    if not options[SECTION] in config.sections():
-        raise SystemExit('No [zabbix] section in the configuration file')
-
-    for (option_key, option_value) in config.items(options[SECTION], 1):
-        options[option_key] = option_value.strip('"').strip("'")
-
+    parse_config_file(options)
     tool.login(**options)      # Cheating!
     if not args:
         parser.print_help()
