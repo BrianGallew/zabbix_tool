@@ -16,6 +16,7 @@ import re
 from pprint import pprint
 from pydoc import render_doc
 from optparse import OptionParser
+from types import StringTypes
 
 CONFIG = 'config'
 LOGLEVEL = 'loglevel'
@@ -147,19 +148,27 @@ class Tool(object):
         return []
 
     def __generic_getter(self, object_type, object_key, id_attribute,
-                         filter_attribute='name', output='extend', **kwargs):
+                         filter_attribute='name', output='extend', **params):
         '''This is a generic getter.  Hopefully, it will reduce most of the other getters to one-liners.
         '''
         logging.debug("Tool.__generic_getter: %s %s %s %s %s %s", object_type, object_key,
-                      id_attribute, filter_attribute, output, kwargs)
+                      id_attribute, filter_attribute, output, params)
         thing = getattr(self.z, object_type)
+        params[self._OUTPUT] = output
         try:
             int(object_key)
-            params = {id_attribute: object_key, self._OUTPUT: output}
+            params[id_attribute] = int(object_key)
         except:
-            params = {
-                self._FILTER: {filter_attribute: object_key}, self._OUTPUT: output}
-        params.update(kwargs)
+            # Really, this is mostly to handle item and itemprototypes neatly.
+            if isinstance(filter_attribute, StringTypes):
+                params[self._FILTER] = {filter_attribute: object_key}
+            else:
+                intermediate_results = []
+                for key_name in filter_attribute:
+                    params[self._FILTER] = {key_name: object_key}
+                    intermediate_results.extend(thing.get(params))
+                return intermediate_results
+
         return thing.get(params)
 
     def get_hostgroup(self, identifier):
@@ -187,14 +196,14 @@ class Tool(object):
     def get_item(self, identifier, *hostgroups):
         '''Look up an item by name or ID number.  Returns a list with a single element'''
         if hostgroups:
-            return self.__generic_getter(self._ITEM, identifier, self._ITEMIDS, group=hostgroups[0])
+            return self.__generic_getter(self._ITEM, identifier, self._ITEMIDS, [self._NAME, self._KEY], group=hostgroups[0])
         else:
-            return self.__generic_getter(self._ITEM, identifier, self._ITEMIDS)
+            return self.__generic_getter(self._ITEM, identifier, self._ITEMIDS, [self._NAME, self._KEY])
 
     def get_item_host(self, identifier, host):
         '''Look up an item by name or ID number for a given host.  Returns a list with a single element'''
         hosts = [x[self._HOSTID] for x in self.get_host(host)]
-        return self.__generic_getter(self._ITEM, identifier, self._ITEMIDS, hostids=hosts)
+        return self.__generic_getter(self._ITEM, identifier, self._ITEMIDS, [self._NAME, self._KEY], hostids=hosts)
 
     def get_usermacros(self, identifier, filter_expression=None):
         '''Look up a host's macros by hostid.  Returns a list'''
@@ -226,7 +235,7 @@ class Tool(object):
 
     def get_item_prototype(self, identifier, limit=0):
         '''Look up an itemprototype by name or ID number.  Returns a list'''
-        return self.__generic_getter(self._ITEMPROTOTYPE, identifier, self._ITEMIDS, limit=limit)
+        return self.__generic_getter(self._ITEMPROTOTYPE, identifier, self._ITEMIDS, [self._NAME, self._KEY], limit=limit)
 
     def get_trigger_prototype(self, identifier, limit=0):
         '''Look up an triggerprototype by name or ID number.  Returns a list'''
