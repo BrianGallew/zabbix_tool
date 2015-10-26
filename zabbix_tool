@@ -179,6 +179,16 @@ class Tool(object):
         '''Look up a host by name or ID number.  Returns a list with a single element'''
         return self.__generic_getter(self._HOST, identifier, self._HOSTIDS)
 
+    def delete_host(self, identifier):
+        '''Look up a host by name or ID number, then delete it.  Returns a list with a single element'''
+        hostids = [x[self._HOSTID] for x in self.__generic_getter(
+            self._HOST, identifier, self._HOSTIDS)]
+        return self.z.host.delete(hostids)
+
+    def search_host(self, identifier):
+        '''Search for hosts by partial name.  Returns a list.'''
+        return self.z.host.get({self._SEARCH: {self._NAME: identifier}, self._OUTPUT: self._EXTEND})
+
     def get_proxy(self, identifier):
         '''Look up a proxy by name or ID number.  Returns a list with a single element'''
         return self.__generic_getter(self._PROXY, identifier, self._PROXYIDS, self._HOST)
@@ -465,7 +475,7 @@ class Tool(object):
         '''Look up a host by name or ID number.  Rename all items that match the RE by substituting the replacement.'''
         replacer = re.compile(match_re)
         results = []
-        for item in self.get_items(host):
+        for item in self.get_host_items(host):
             if item.has_key(self._NAME):
                 new_name = replacer.sub(replacement, item[self._NAME])
                 if new_name != item[self._NAME]:
@@ -599,6 +609,14 @@ class Tool(object):
         template = [x[self._TEMPLATEID] for x in self.get_template(t)]
         return self.z.host.get({self._TEMPLATEIDS: template, self._OUTPUT: self._EXTEND})
 
+    def search_template(self, term, **kwargs):
+        '''Search for templates matching the given fragment.  Returns a list'''
+        params = {self._SEARCH: {self._NAME: term, self._SEARCHWILDCARDSENABLED: True},
+                  self._OUTPUT: self._EXTEND}
+        params.update(kwargs)
+        data = self.z.template.get(params)
+        return data
+
     def link_template_to_host(self, template, host):
         '''Link the given template to the given host.  Takes names or IDs.'''
         template = self.get_template(template)
@@ -631,16 +649,9 @@ class Tool(object):
                     output.append(tmpl['name'] + ' - ' + trig['description'])
         return output
 
-    def add_item_to_template(self, h, *extra_args):
+    def add_item_to_template(self, h, **kwargs):
         '''Create a new item.  Takes a template and dictionary of values.'''
         h = self.get_template(h)[0]
-        kwargs = {}
-        for line in extra_args:
-            key, value = line.split('=', 1)
-            try:
-                kwargs[key] = int(value)
-            except:
-                kwargs[key] = value
         kwargs[self._HOSTID] = h[self._TEMPLATEID]
         return self.z.item.create(kwargs)
 
@@ -904,7 +915,16 @@ if __name__ == '__main__':
         exit()
 
     try:
-        function_result = cmd(*args)
+        kwargs = {}
+        func_args = []
+        for arg in args:
+            if '=' in arg:
+                key, value = arg.split('=', 1)
+                kwargs[key] = value
+            else:
+                func_args.append(arg)
+        func_args = tuple(func_args)
+        function_result = cmd(*func_args, **kwargs)
     except TypeError:
         print(render_doc(cmd))
         exit()
