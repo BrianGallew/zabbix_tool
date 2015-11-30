@@ -29,11 +29,13 @@ The Config file should look like this:
 username='zabbix-api-user'
 password='not-your-password'
 url='http://zabbix-api.example.com/'
+validate_certs='True'
 
 [dev]
 username='zabbix-dev-api-user'
 password='not-mine-either'
 url='https://zabbix-dev.example.com/'
+validate_certs=''
 -------------- CUT HERE -----------------
 ```
 
