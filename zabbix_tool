@@ -34,11 +34,13 @@ The Config file used by %s should look like this:
 username='zabbix-api-user'
 password='not-your-password'
 url='http://zabbix-api.example.com/'
+validate_certs='True'
 
 [dev]
 username='zabbix-dev-api-user'
 password='not-mine-either'
 url='https://zabbix-dev.example.com/'
+validate_certs=''
 -------------- CUT HERE -----------------
 
 By default, %s will use the [zabbix] paragraph, but if you use the
@@ -96,9 +98,9 @@ class Tool(object):
     _TRIGGERPROTOTYPE = 'triggerprototype'
     _USERMACRO = 'usermacro'
 
-    def login(self, url, username, password, timeout=60, loglevel=logging.ERROR, **_):
+    def login(self, url, username, password, validate_certs, timeout=60, loglevel=logging.ERROR, **_):
         '''Connect to Zabbix server'''
-        self.z = zabbix_api.ZabbixAPI(server=url, timeout=timeout)
+        self.z = zabbix_api.ZabbixAPI(server=url, timeout=timeout, validate_certs=validate_certs)
         self.z.set_log_level(loglevel)
         self.z.login(user=username, password=password)
         return
