@@ -56,6 +56,9 @@ By default, %s will use the [zabbix] paragraph, but if you use the
 -s/--section option, you can tell %s to use a different section.
 ''' % (sys.argv[0], sys.argv[0], sys.argv[0])
 
+'''Return key for sorting in natural order'''
+def natural_key(string_):
+    return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
 
 class Client(object):
 
@@ -235,7 +238,7 @@ class Client(object):
                                        }):
             hosts.extend(x[self._HOSTS])
         logging.debug("Client.get_hostgroup_hosts: %s", str(hosts))
-        return sorted(hosts, key=operator.itemgetter(self._HOST))
+        return sorted(hosts, key=lambda x: natural_key(x[self._HOST]))
 
     def create(self):
         """Creates a screen.
