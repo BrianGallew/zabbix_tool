@@ -401,7 +401,7 @@ class Client(object):
         if not self.options.add_all_host:  # Check to see if we're adding host graphs
             return                   # Bail if not
         if self.template:
-            loggin.warn(
+            logging.warn(
                 "--add-all-host isn't valid with --template, ignoring it")
             return
 
@@ -431,7 +431,7 @@ class Client(object):
         if not self.options.add_all_group:  # Check to see if we're really doing this
             return                   # Bail if not
         if self.template:
-            loggin.warn(
+            logging.warn(
                 "--add-all-group isn't valid with --template, ignoring it")
             return
         # Get our host information
