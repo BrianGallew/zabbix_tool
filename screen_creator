@@ -25,6 +25,7 @@ import ConfigParser
 import argparse
 import operator
 import re
+import math
 from pprint import pprint
 
 CONFIG = 'config'
@@ -56,6 +57,9 @@ By default, %s will use the [zabbix] paragraph, but if you use the
 -s/--section option, you can tell %s to use a different section.
 ''' % (sys.argv[0], sys.argv[0], sys.argv[0])
 
+'''Return key for sorting in natural order'''
+def natural_key(string_):
+    return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
 
 class Client(object):
 
@@ -235,7 +239,7 @@ class Client(object):
                                        }):
             hosts.extend(x[self._HOSTS])
         logging.debug("Client.get_hostgroup_hosts: %s", str(hosts))
-        return sorted(hosts, key=operator.itemgetter(self._HOST))
+        return sorted(hosts, key=lambda x: natural_key(x[self._HOST]))
 
     def create(self):
         """Creates a screen.
@@ -333,7 +337,6 @@ class Client(object):
         # Get the current screen configuration
         existing_items = self.z.screenitem.get({self._SCREENIDS: self.screen[self._SCREENID],
                                                 self._OUTPUT: self._EXTEND})
-
         # Create a list of all valid coordinates in the graph, sorted for a
         # HORIZONTAL layout, because switching to VERTICAL is then really
         # easy.
@@ -360,6 +363,15 @@ class Client(object):
                 logging.info('add_graphs_to_screen: Removing existing item from add list: %s', item[
                              self._RESOURCEID])
                 graphs.remove(lookup_table[item[self._RESOURCEID]])
+
+        # Check if screen can not fit provided graphs and increase vsize.
+        max_graphs = int(self.screen[self._HSIZE])*int(self.screen[self._VSIZE])
+        if not self.options.vsize and max_graphs-len(existing_items) < len(graphs):
+            self.options.vsize = int(self.screen[self._VSIZE])+math.ceil(len(graphs)/float(self.screen[self._HSIZE]))
+            logging.info('add_graphs_to_screen: Setting screen vsize to %d' % self.options.vsize)
+            self.update_screen_settings()
+            # Current graph_matrix is wrong now, so call again.
+            return self.add_graphs_to_screen(graphs)
 
         # Iterate through the matrix looking for empty graph locations.
         for (x, y) in graph_matrix:
@@ -401,7 +413,7 @@ class Client(object):
         if not self.options.add_all_host:  # Check to see if we're adding host graphs
             return                   # Bail if not
         if self.template:
-            loggin.warn(
+            logging.warn(
                 "--add-all-host isn't valid with --template, ignoring it")
             return
 
@@ -431,7 +443,7 @@ class Client(object):
         if not self.options.add_all_group:  # Check to see if we're really doing this
             return                   # Bail if not
         if self.template:
-            loggin.warn(
+            logging.warn(
                 "--add-all-group isn't valid with --template, ignoring it")
             return
         # Get our host information
