@@ -260,6 +260,12 @@ class Tool(object):
         hosts = list(set([x[self._HOSTID] for x in self.__generic_getter(self._HOST, '', self._HOSTIDS)]))
         return [{self._NAME: x[self._NAME], self._GRAPHID: x[self._GRAPHID]} for x in self.z.graph.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND, self._SEARCH: {self._NAME: match_name}})]
 
+    def delete_graph(self, identifier):
+        '''Look up a graph by name or ID number, then delete it.  Returns a list with a single element'''
+        graphids = [x[self._GRAPHID] for x in self.__generic_getter(
+            self._GRAPH, identifier, self._GRAPHIDS)]
+        return self.z.graph.delete(graphids)
+
     def get_item_prototype(self, identifier, limit=0):
         '''Look up an itemprototype by name or ID number.  Returns a list'''
         return self.__generic_getter(self._ITEMPROTOTYPE, identifier, self._ITEMIDS, [self._NAME, self._KEY], limit=limit)
