@@ -56,23 +56,27 @@ class Tool(object):
 
     _APPLICATIONID = 'applicationid'
     _APPLICATIONIDS = 'applicationids'
-    _DISCOVERYRULE = 'discoveryrule'
     _DESCRIPTION = 'description'
+    _DISCOVERYRULE = 'discoveryrule'
     _ERROR = 'error'
     _EXTEND = 'extend'
-    _GRAPH = 'graph'
     _FILTER = 'filter'
+    _GRAPH = 'graph'
+    _GRAPHID = 'graphid'
+    _GRAPHIDS = 'graphids'
     _GROUPID = 'groupid'
     _GROUPIDS = 'groupids'
-    _HOSTGROUP = 'hostgroup'
+    _HEIGHT = 'height'
     _HOST = 'host'
+    _HOSTGROUP = 'hostgroup'
     _HOSTID = 'hostid'
     _HOSTIDS = 'hostids'
-    _ITEM = 'item'
     _HOSTS = 'hosts'
+    _HSIZE = 'hsize'
+    _ITEM = 'item'
     _ITEMID = 'itemid'
-    _ITEMPROTOTYPE = 'itemprototype'
     _ITEMIDS = 'itemids'
+    _ITEMPROTOTYPE = 'itemprototype'
     _KEY = 'key_'
     _LIMIT = 'limit'
     _NAME = 'name'
@@ -80,6 +84,10 @@ class Tool(object):
     _PROXY = 'proxy'
     _PROXYID = 'proxyid'
     _PROXYIDS = 'proxyids'
+    _RESOURCEID = 'resourceid'
+    _RESULT = 'result'
+    _SCREENID = 'screenid'
+    _SCREENIDS = 'screenids'
     _SEARCH = 'search'
     _SEARCHWILDCARDSENABLED = 'searchwildcardsenabled'
     _SELECTHOSTS = 'selectHosts'
@@ -91,9 +99,11 @@ class Tool(object):
     _TEMPLATEID = 'templateid'
     _TEMPLATEIDS = 'templateids'
     _TEMPLATES = 'templates'
+    _TRIGGER = 'trigger'
     _TRIGGERIDS = 'triggerids'
     _VALUE_TYPE = 'value_type'
-    _TRIGGER = 'trigger'
+    _VSIZE = 'vsize'
+    _WIDTH = 'width'
 
     _TRIGGERPROTOTYPE = 'triggerprototype'
     _USERMACRO = 'usermacro'
@@ -244,6 +254,17 @@ class Tool(object):
     def get_graph(self, identifier):
         '''Look up a graph by name or ID number.  Returns a list.'''
         return self.__generic_getter(self._GRAPH, identifier, self._GRAPHIDS)
+
+    def get_graphs(self, match_name=''):
+        '''List all graphs, fitering via the (optional) parameter'''
+        hosts = list(set([x[self._HOSTID] for x in self.__generic_getter(self._HOST, '', self._HOSTIDS)]))
+        return [{self._NAME: x[self._NAME], self._GRAPHID: x[self._GRAPHID]} for x in self.z.graph.get({self._HOSTIDS: hosts, self._OUTPUT: self._EXTEND, self._SEARCH: {self._NAME: match_name}})]
+
+    def delete_graph(self, identifier):
+        '''Look up a graph by name or ID number, then delete it.  Returns a list with a single element'''
+        graphids = [x[self._GRAPHID] for x in self.__generic_getter(
+            self._GRAPH, identifier, self._GRAPHIDS)]
+        return self.z.graph.delete(graphids)
 
     def get_item_prototype(self, identifier, limit=0):
         '''Look up an itemprototype by name or ID number.  Returns a list'''
